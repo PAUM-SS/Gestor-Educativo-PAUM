@@ -1,0 +1,18 @@
+ERROR: Error: Cannot find module 'pdfjs-dist/legacy/build/pdf.js'
+Require stack:
+- C:\Users\hp\AppData\Local\Temp\3CbOZW6W7HoIaM47TNN6M0lmjx5\resources\app\build\electron\main.cjs
+- 
+Error: Cannot find module 'pdfjs-dist/legacy/build/pdf.js'
+Require stack:
+- C:\Users\hp\AppData\Local\Temp\3CbOZW6W7HoIaM47TNN6M0lmjx5\resources\app\build\electron\main.cjs
+- 
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1390:15)
+    at s._resolveFilename (node:electron/js2c/browser_init:2:129943)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1032:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1037:22)
+    at Module._load (node:internal/modules/cjs/loader:1199:37)
+    at c._load (node:electron/js2c/node_init:2:17993)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+    at Module.require (node:internal/modules/cjs/loader:1470:12)
+    at require (node:internal/modules/helpers:147:16)

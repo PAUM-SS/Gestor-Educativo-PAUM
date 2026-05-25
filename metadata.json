@@ -1,0 +1,6 @@
+{
+  "name": "Remix: Gestor Educativo PAUM",
+  "description": "Sistema integral de gestión para el programa de Profesional Asociado a Urgencias Médicas, incluyendo currículo, estudiantes, rotaciones y evaluaciones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

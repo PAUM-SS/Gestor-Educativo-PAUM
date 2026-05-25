@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-gb-bg: #F8FAFC;
+  --color-gb-primary: #1e3a8a; /* BUAP Blue Darker */
+  --color-gb-secondary: #0f172a;
+  --color-gb-accent: #b59410; /* BUAP Gold */
+  --color-gb-text: #1e293b;
+  --color-gb-border: #e2e8f0;
+  --color-gb-white: #FFFFFF;
+}
+
+@layer base {
+  body {
+    @apply bg-gb-bg text-gb-text font-sans selection:bg-gb-primary/10;
+  }
+}
+
+.geometric-card {
+  @apply bg-gb-white border border-gb-border rounded-lg shadow-none transition-all duration-200;
+}
+
+.nav-active {
+  @apply bg-gb-primary text-white;
+}
+
+.section-label {
+  @apply text-[11px] font-bold uppercase text-gb-secondary tracking-[0.5px] border-l-[3px] border-gb-accent pl-[10px] mb-[15px] block;
+}
+
+.table-header-gb {
+  @apply bg-[#F8F9FA] border-b border-gb-border px-[15px] py-[15px] font-bold text-[13px] text-gb-secondary;
+}
+
+.table-row-gb {
+  @apply px-[15px] py-[15px] border-b border-[#F1F1F1] text-[13px] text-gb-text hover:bg-slate-50 transition-colors;
+}
