@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import Overview from './components/Overview';
@@ -17,7 +17,6 @@ import MinutesView from './components/MinutesView';
 import PAUMShield from './components/PAUMShield';
 import { Send } from 'lucide-react';
 import ReportModal from './components/ReportModal';
-import { useState, useEffect } from 'react';
 import { curriculumService, calcCurriculumProgress } from './services/curriculumService';
 import { Module } from './types';
 
