@@ -13,14 +13,27 @@ import Faculty from './components/Faculty';
 import ClinicalFields from './components/ClinicalFields';
 import CalendarView from './components/CalendarView';
 import MinutesView from './components/MinutesView';
-import SchedulingView from './components/SchedulingView';
+//import SchedulingView from './components/SchedulingView';
 import PAUMShield from './components/PAUMShield';
 import { Send } from 'lucide-react';
 import ReportModal from './components/ReportModal';
+import { useState, useEffect } from 'react';
+import { curriculumService, calcCurriculumProgress } from './services/curriculumService';
+import { Module } from './types';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  const [modules, setModules] = useState<Module[]>([]);
+
+  useEffect(() => {
+    curriculumService.getModules().then(setModules);
+  }, []);
+
+  const progress  = calcCurriculumProgress(modules);
+  const basico    = progress.byLevel.find(l => l.level === 'Básico')!;
+  const formativo = progress.byLevel.find(l => l.level === 'Formativo')!;
 
   const renderView = () => {
     switch(currentView) {
@@ -29,7 +42,7 @@ export default function App() {
       case 'curriculum': return <Curriculum />;
       case 'faculty': return <Faculty />;
       case 'clinical-fields': return <ClinicalFields />;
-      case 'scheduling': return <SchedulingView />;
+      //case 'scheduling': return <SchedulingView />;
       case 'calendar': return <CalendarView />;
       case 'minutes': return <MinutesView />;
       default: return <Overview onViewChange={setCurrentView} />;
@@ -135,28 +148,28 @@ export default function App() {
               <div className="relative w-36 h-36 mb-4">
                 <svg className="w-full h-full transform -rotate-90">
                   <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
-                  <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={376.8} strokeDashoffset={376.8 * (1 - 0.73)} className="text-gb-accent transition-all duration-1000" />
+                  <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={376.8} strokeDashoffset={376.8 * (1 - progress.totalPct / 100)} className="text-gb-accent transition-all duration-1000" />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-black text-gb-secondary" title="Suma total de créditos aprobados por la generación actual">73%</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">121 / 165 Crts.</span>
+                  <span className="text-3xl font-black text-gb-secondary" title="Suma total de créditos aprobados por la generación actual">{progress.totalPct}%</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{progress.completedCredits} / {progress.totalCredits} Crts.</span>
                 </div>
               </div>
               <p className="text-[10px] text-slate-400 text-center mb-4 leading-tight">Representa el avance global en la obtención de créditos acumulados y validación de temarios del programa PAUM.</p>
               <div className="w-full space-y-2">
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Básico</span>
-                  <span className="text-gb-primary">95% (68/71)</span>
+                  <span className="text-gb-primary">{basico.pct}% ({basico.completed}/{basico.total})</span>
                 </div>
                 <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gb-primary w-[95%]" />
+                  <div className={`h-full bg-gb-primary`} style={{ width: `${basico.pct}%` }} />
                 </div>
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Formativo</span>
-                  <span className="text-gb-accent">56% (53/94)</span>
+                  <span className="text-gb-accent">{formativo.pct}% ({formativo.completed}/{formativo.total})</span>
                 </div>
                 <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gb-accent w-[56%]" />
+                  <div className={`h-full bg-gb-accent`} style={{ width: `${formativo.pct}%` }} />
                 </div>
               </div>
             </div>
