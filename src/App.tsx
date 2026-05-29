@@ -156,6 +156,7 @@ export default function App() {
               </div>
               <p className="text-[10px] text-slate-400 text-center mb-4 leading-tight">Representa el avance global en la obtención de créditos acumulados y validación de temarios del programa PAUM.</p>
               <div className="w-full space-y-2">
+                
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Básico</span>
                   <span className="text-gb-primary">{basico.pct}% ({basico.completed}/{basico.total})</span>
@@ -163,6 +164,7 @@ export default function App() {
                 <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                   <div className={`h-full bg-gb-primary`} style={{ width: `${basico.pct}%` }} />
                 </div>
+
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Formativo</span>
                   <span className="text-gb-accent">{formativo.pct}% ({formativo.completed}/{formativo.total})</span>
@@ -170,6 +172,27 @@ export default function App() {
                 <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                   <div className={`h-full bg-gb-accent`} style={{ width: `${formativo.pct}%` }} />
                 </div>
+                
+                <div className="flex justify-between text-[10px] font-bold">
+                  <span className="text-slate-500 uppercase">Nivel Minerva</span>
+                  <span className="text-gb-primary">
+                    {progress.byLevel.find(l => l.level === 'Minerva')!.pct}% ({progress.byLevel.find(l => l.level === 'Minerva')!.completed}/{progress.byLevel.find(l => l.level === 'Minerva')!.total})
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-gb-primary" style={{ width: `${progress.byLevel.find(l => l.level === 'Minerva')!.pct}%` }} />
+                </div>
+
+                <div className="flex justify-between text-[10px] font-bold">
+                  <span className="text-slate-500 uppercase">Práctica / Servicio</span>
+                  <span className="text-gb-accent">
+                    {progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.pct}% ({progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.completed}/{progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.total})
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-gb-accent" style={{ width: `${progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.pct}%` }} />
+                </div>
+
               </div>
             </div>
 

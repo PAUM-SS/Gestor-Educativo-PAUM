@@ -138,6 +138,8 @@ export default function Overview({ onViewChange }: OverviewProps) {
           
           <div className="space-y-6">
             <p className="text-[11px] text-slate-500 leading-tight mb-4">Métrica que pondera la entrega de contenidos temáticos (avance didáctico) frente al cumplimiento de créditos reglamentarios por nivel.</p>
+
+            {/* ── Nivel Básico ── */}
             <div>
               <div className="flex justify-between mb-2">
                 <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Básico</span>
@@ -148,6 +150,7 @@ export default function Overview({ onViewChange }: OverviewProps) {
               </div>
             </div>
 
+            {/* ── Nivel Formativo ── */}
             <div>
               <div className="flex justify-between mb-2">
                 <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Formativo</span>
@@ -155,6 +158,32 @@ export default function Overview({ onViewChange }: OverviewProps) {
               </div>
               <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                 <motion.div initial={{ width: 0 }} animate={{ width: `${formativo.pct}%` }} className="absolute h-full bg-gb-accent" />
+              </div>
+            </div>
+
+            {/* ── Nivel Minerva ── */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Minerva</span>
+                <span className="text-xs font-black text-gb-primary">
+                  {progress.byLevel.find(l => l.level === 'Minerva')!.completed} / {progress.byLevel.find(l => l.level === 'Minerva')!.total}
+                </span>
+              </div>
+              <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress.byLevel.find(l => l.level === 'Minerva')!.pct}%` }} className="absolute h-full bg-gb-primary" />
+              </div>
+            </div>
+
+            {/* ── Práctica / Servicio ── */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Práctica / Servicio</span>
+                <span className="text-xs font-black text-gb-accent">
+                  {progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.completed} / {progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.total}
+                </span>
+              </div>
+              <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.pct}%` }} className="absolute h-full bg-gb-accent" />
               </div>
             </div>
 
