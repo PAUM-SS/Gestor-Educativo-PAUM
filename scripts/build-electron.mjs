@@ -14,7 +14,7 @@ await build({
   entryPoints: [path.join(projectRoot, 'electron', 'main.ts')],
   outfile: path.join(outputDir, 'main.cjs'),
   bundle: true,
-  external: ['electron', 'pdf-parse'], // Solo pdf-parse debe ser externa para que funcione su lectura de archivos nativa
+  external: ['electron', 'pdf-parse', 'better-sqlite3'], // Módulos nativos o con problemas de empaquetado
   format: 'cjs',
   platform: 'node',
   target: 'node20',

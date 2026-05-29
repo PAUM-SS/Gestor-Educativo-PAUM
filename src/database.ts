@@ -1,18 +1,19 @@
+import Database from 'better-sqlite3';
 import fs from 'node:fs/promises';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 // Import initial mock data as fallback/seed
-import { 
-  MOCK_STUDENTS, 
-  MOCK_MODULES, 
-  MOCK_MINUTES, 
-  MOCK_FACULTY, 
+import {
+  MOCK_STUDENTS,
+  MOCK_MODULES,
+  MOCK_MINUTES,
+  MOCK_FACULTY,
   MOCK_CLINICAL_FIELDS,
-  MOCK_SECTIONS, 
-  MOCK_ROTATIONS, 
-  MOCK_ACTIVITIES 
+  MOCK_SECTIONS,
+  MOCK_ROTATIONS,
+  MOCK_ACTIVITIES
 } from './constants';
 
 import { Student, Module, AcademicMinute, FacultyMember, AcademicSection, ClassSchedule, ManualTask, Rotation, Activity, ClinicalField, SectionDailyRecord } from './types';
@@ -125,67 +126,207 @@ function normalizeFacultyMember(member: FacultyMember): FacultyMember {
   };
 }
 
-export class JsonDatabase {
+export class SqliteDatabase {
   private dbPath: string;
   private dataDir: string;
-  private data: DatabaseSchema | null = null;
+  private db!: Database.Database;
 
   constructor() {
-    // Buscar la ruta de OneDrive (Institucional o Personal)
     const oneDrivePath = process.env.OneDriveCommercial || process.env.OneDrive;
     const userHome = os.homedir();
-    
-    // Si existe OneDrive, guardamos ahí para sincronización en la nube.
-    // Si no, guardamos en la carpeta Documentos normal.
-    const baseDir = oneDrivePath ? oneDrivePath : 
-                   (existsSync(path.join(userHome, 'Documents')) ? path.join(userHome, 'Documents') : userHome);
-                   
+
+    const baseDir = oneDrivePath
+      ? oneDrivePath
+      : (existsSync(path.join(userHome, 'Documents'))
+        ? path.join(userHome, 'Documents')
+        : userHome);
+
     const dataDir = path.join(baseDir, 'PAUM_BaseDeDatos');
-    
-    if (!existsSync(dataDir)) {
-      mkdirSync(dataDir, { recursive: true });
-    }
-    
+
+    if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+
     this.dataDir = dataDir;
-    this.dbPath = path.join(dataDir, 'database.json');
+    this.dbPath = path.join(dataDir, 'database.sqlite');
   }
 
   async init() {
     try {
-      if (existsSync(this.dbPath)) {
-        const fileContent = await fs.readFile(this.dbPath, 'utf-8');
-        this.data = JSON.parse(fileContent);
-        const normalizedSections = this.data.sections.map(normalizeSection);
-        const normalizedFaculty = this.data.faculty.map(normalizeFacultyMember);
-        const normalizedClinicalFields = Array.isArray(this.data.clinicalFields) ? this.data.clinicalFields : [];
-        const normalizedSectionDailyRecords = Array.isArray(this.data.sectionDailyRecords)
-          ? this.data.sectionDailyRecords.map(normalizeSectionDailyRecord)
-          : [];
-        const sectionDataChanged =
-          JSON.stringify(normalizedSections) !== JSON.stringify(this.data.sections);
-        const facultyDataChanged =
-          JSON.stringify(normalizedFaculty) !== JSON.stringify(this.data.faculty);
-        const clinicalFieldsMissing = !Array.isArray(this.data.clinicalFields);
-        const sectionDailyRecordsMissing = !Array.isArray(this.data.sectionDailyRecords);
-        const sectionDailyRecordDataChanged =
-          JSON.stringify(normalizedSectionDailyRecords) !== JSON.stringify(this.data.sectionDailyRecords ?? []);
-        this.data.sections = normalizedSections;
-        this.data.faculty = normalizedFaculty;
-        this.data.clinicalFields = normalizedClinicalFields;
-        this.data.sectionDailyRecords = normalizedSectionDailyRecords;
-        if (
-          sectionDataChanged ||
-          facultyDataChanged ||
-          clinicalFieldsMissing ||
-          sectionDailyRecordsMissing ||
-          sectionDailyRecordDataChanged
-        ) {
-          await this.save();
+      this.db = new Database(this.dbPath);
+    } catch (error) {
+      console.error('[Base de datos] No se pudo abrir el archivo SQLite: ', error);
+      this.db = new Database(':memory:');
+    }
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS students (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        enrollmentId TEXT,
+        semester INTEGER,
+        status TEXT,
+        gpa REAL,
+        attendance REAL,
+        email TEXT,
+        cohort TEXT,
+        tutor TEXT,
+        alert INTEGER,
+        kardex TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS modules (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        code TEXT,
+        credits INTEGER,
+        description TEXT,
+        instructor TEXT,
+        competencies TEXT,
+        status TEXT,
+        semester TEXT,
+        level TEXT,
+        syllabusUrl TEXT,
+        syllabusFileName TEXT,
+        didacticPlanningUrl TEXT,
+        didacticPlanningFileName TEXT,
+        planning TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS minutes (
+        id TEXT PRIMARY KEY,
+        date TEXT,
+        subject TEXT,
+        tasks TEXT,
+        fullData TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS faculty (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        category TEXT,
+        level TEXT,
+        dedication TEXT,
+        seniority INTEGER,
+        hireDate TEXT,
+        compliance TEXT,
+        adscription TEXT,
+        email TEXT,
+        phone TEXT,
+        photo TEXT,
+        weeklySchedule TEXT,
+        permissions TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS clinical_fields (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        type TEXT,
+        level INTEGER,
+        slots INTEGER,
+        status TEXT,
+        pertinence TEXT,
+        lastInspection TEXT,
+        agreementExpiry TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS sections (
+        id TEXT PRIMARY KEY,
+        moduleId TEXT NOT NULL REFERENCES modules(id),
+        moduleName TEXT,
+        facultyId TEXT REFERENCES faculty(id) ON DELETE SET NULL,
+        groupCode TEXT NOT NULL,
+        semester TEXT,
+        room TEXT,
+        roomType TEXT,
+        capacity INTEGER DEFAULT 0,
+        enrolled INTEGER DEFAULT 0,
+        schedule TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS section_daily_records (
+        id TEXT PRIMARY KEY,
+        sectionId TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        facultyPresent INTEGER DEFAULT 1,
+        absentStudentIds TEXT DEFAULT '[]',
+        justification TEXT,
+        justificationType TEXT,
+        topic TEXT,
+        signature INTEGER DEFAULT 0,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS rotations (
+        id TEXT PRIMARY KEY,
+        studentId TEXT NOT NULL REFERENCES students(id),
+        studentName TEXT,
+        clinicalFieldId TEXT REFERENCES clinical_fields(id) ON DELETE SET NULL,
+        facility TEXT,
+        department TEXT,
+        startDate TEXT,
+        endDate TEXT,
+        supervisor TEXT,
+        status TEXT DEFAULT 'programada'
+      );
+
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        type TEXT,
+        title TEXT,
+        timestamp TEXT,
+        relatedId TEXT,
+        status TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS _meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    // 1.5. Migraciones de columnas (para bases de datos que ya existen)
+    const columnExists = (table: string, column: string): boolean => {
+      const cols = this.db.prepare('PRAGMA table_info(' + table + ')').all() as { name: string }[];
+      return cols.some(c => c.name === column);
+    };
+
+    if (!columnExists('sections', 'semester')) {
+      this.db.exec('ALTER TABLE sections ADD COLUMN semester TEXT');
+      console.log('[Base de Datos] Migración: columna semester agregada a sections.');
+    }
+    if (!columnExists('rotations', 'clinicalFieldId')) {
+      this.db.exec('ALTER TABLE rotations ADD COLUMN clinicalFieldId TEXT');
+      console.log('[Base de Datos] Migración: columna clinicalFieldId agregada a rotations.');
+    }
+    if (!columnExists('activities', 'relatedId')) {
+      this.db.exec('ALTER TABLE activities ADD COLUMN relatedId TEXT');
+      console.log('[Base de Datos] Migración: columna relatedId agregada a activities.');
+    }
+
+    // 2. Migration logic
+    const seeded = this.db
+      .prepare("SELECT value FROM _meta WHERE key = 'seeded'")
+      .get() as { value: string } | undefined;
+
+    if (!seeded) {
+      console.log('[Base de Datos] Primera ejecución. Iniciando siembra o migración.');
+
+      let initialData: DatabaseSchema | null = null;
+      const oldJsonPath = path.join(this.dataDir, 'database.json');
+
+      if (existsSync(oldJsonPath)) {
+        console.log(`[Base de Datos] Migrando desde ${oldJsonPath}...`);
+        try {
+          const fileContent = await fs.readFile(oldJsonPath, 'utf-8');
+          initialData = JSON.parse(fileContent);
+        } catch (error) {
+          console.error('[Base de Datos] Error al leer database.json:', error);
         }
-        console.log(`[Base de Datos] Cargada desde: ${this.dbPath}`);
-      } else {
-        console.log(`[Base de Datos] Archivo no encontrado. Inicializando con datos predeterminados en: ${this.dbPath}`);
-        this.data = {
+      }
+
+      if (!initialData) {
+        initialData = {
           students: MOCK_STUDENTS,
           modules: MOCK_MODULES,
           minutes: MOCK_MINUTES,
@@ -196,34 +337,134 @@ export class JsonDatabase {
           rotations: MOCK_ROTATIONS,
           activities: MOCK_ACTIVITIES
         };
-        await this.save();
       }
-    } catch (error) {
-      console.error('[Base de Datos] Error al inicializar:', error);
-      // En caso de error crítico (JSON corrupto), inicia de cero en memoria
-      this.data = {
-        students: MOCK_STUDENTS,
-        modules: MOCK_MODULES,
-        minutes: MOCK_MINUTES,
-        faculty: MOCK_FACULTY.map(normalizeFacultyMember),
-        clinicalFields: MOCK_CLINICAL_FIELDS,
-        sections: MOCK_SECTIONS.map(normalizeSection),
-        sectionDailyRecords: [],
-        rotations: MOCK_ROTATIONS,
-        activities: MOCK_ACTIVITIES
-      };
-    }
-  }
 
-  async save() {
-    if (this.data) {
-      await fs.writeFile(this.dbPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      const tx = this.db.transaction((data: DatabaseSchema) => {
+        const insertStudent = this.db.prepare(`INSERT INTO students (id, name, enrollmentId, semester, status, gpa, attendance, email, cohort, tutor, alert, kardex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const s of data.students || []) {
+          insertStudent.run(s.id, s.name, s.enrollmentId, s.semester, s.status, s.gpa, s.attendance, s.email, s.cohort, s.tutor, s.alert ? 1 : 0, s.kardex ? JSON.stringify(s.kardex) : null);
+        }
+
+        const insertModule = this.db.prepare(`INSERT INTO modules (id, title, code, credits, description, instructor, competencies, status, semester, level, syllabusUrl, syllabusFileName, didacticPlanningUrl, didacticPlanningFileName, planning) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const m of data.modules || []) {
+          insertModule.run(m.id, m.title, m.code, m.credits, m.description, m.instructor, JSON.stringify(m.competencies || []), m.status, String(m.semester), m.level, m.syllabusUrl, m.syllabusFileName, m.didacticPlanningUrl, m.didacticPlanningFileName, m.planning ? JSON.stringify(m.planning) : null);
+        }
+
+        const insertMinute = this.db.prepare(`INSERT INTO minutes (id, date, subject, tasks, fullData) VALUES (?, ?, ?, ?, ?)`);
+        for (const m of data.minutes || []) {
+          insertMinute.run(m.id, m.date, m.subject, JSON.stringify(m.tasks || []), m.fullData ? JSON.stringify(m.fullData) : null);
+        }
+
+        const insertFaculty = this.db.prepare(`INSERT INTO faculty (id, name, category, level, dedication, seniority, hireDate, compliance, adscription, email, phone, photo, weeklySchedule, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const f of data.faculty || []) {
+          insertFaculty.run(f.id, f.name, f.category, f.level, f.dedication, f.seniority, f.hireDate, JSON.stringify(f.compliance || {}), f.adscription, f.email, f.phone, f.photo, JSON.stringify(f.weeklySchedule || []), JSON.stringify(f.permissions || []));
+        }
+
+        const insertCF = this.db.prepare(`INSERT INTO clinical_fields (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const c of data.clinicalFields || []) {
+          insertCF.run(c.id, c.name, c.type, c.level, c.slots, c.status, c.pertinence, c.lastInspection, c.agreementExpiry);
+        }
+
+        const insertSection = this.db.prepare(`INSERT INTO sections (id, moduleId, moduleName, facultyId, groupCode, semester, room, roomType, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const s of data.sections || []) {
+          insertSection.run(s.id, s.moduleId, s.moduleName, s.facultyId, s.groupCode, s.semester ?? null, s.room, s.roomType, s.capacity, s.enrolled, JSON.stringify(s.schedule || []));
+        }
+
+        const insertSDR = this.db.prepare(`INSERT INTO section_daily_records (id, sectionId, date, facultyPresent, absentStudentIds, justification, justificationType, topic, signature, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const r of data.sectionDailyRecords || []) {
+          insertSDR.run(r.id, r.sectionId, r.date, r.facultyPresent ? 1 : 0, JSON.stringify(r.absentStudentIds || []), r.justification, r.justificationType, r.topic, r.signature ? 1 : 0, r.updatedAt);
+        }
+
+        const insertRot = this.db.prepare(`INSERT INTO rotations (id, studentId, studentName, clinicalFieldId, facility, department, startDate, endDate, supervisor, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const r of data.rotations || []) {
+          insertRot.run(r.id, r.studentId, r.studentName, r.clinicalFieldId ?? null, r.facility, r.department, r.startDate, r.endDate, r.supervisor, r.status);
+        }
+
+        const insertAct = this.db.prepare(`INSERT INTO activities (id, type, title, timestamp, relatedId, status) VALUES (?, ?, ?, ?, ?, ?)`);
+        for (const a of data.activities || []) {
+          insertAct.run(a.id, a.type, a.title, a.timestamp, a.relatedId ?? null, a.status);
+        }
+
+        this.db
+          .prepare("INSERT OR IGNORE INTO _meta (key, value) VALUES ('seeded', 'true')")
+          .run();
+      });
+
+      tx(initialData);
+
+      if (existsSync(oldJsonPath)) {
+        await fs.rename(oldJsonPath, oldJsonPath + '.bak')
+          .catch(e => console.warn("[Base de Datos] No se pudo renombrar database.json: ", e));
+      }
     }
+    console.log(`[Base de Datos] SQLite Lista en: ${this.dbPath}`);
   }
 
   getData(): DatabaseSchema {
-    if (!this.data) throw new Error('Database not initialized');
-    return this.data;
+    const parseJSON = (str: any, fallback: any) => {
+      if (!str) return fallback;
+      try { return JSON.parse(str); } catch { return fallback; }
+    };
+
+    const students = this.db.prepare("SELECT * FROM students ORDER BY id DESC").all().map((row: any) => ({
+      ...row,
+      alert: Boolean(row.alert),
+      kardex: parseJSON(row.kardex, undefined)
+    })) as Student[];
+
+    const modules = this.db.prepare("SELECT * FROM modules").all().map((row: any) => {
+      const sem = isNaN(Number(row.semester)) ? row.semester : Number(row.semester);
+      return {
+        ...row,
+        semester: sem,
+        competencies: parseJSON(row.competencies, []),
+        planning: parseJSON(row.planning, undefined)
+      };
+    }) as Module[];
+
+    const minutes = this.db.prepare("SELECT * FROM minutes ORDER BY date DESC").all().map((row: any) => ({
+      ...row,
+      tasks: parseJSON(row.tasks, []),
+      fullData: parseJSON(row.fullData, undefined)
+    })) as AcademicMinute[];
+
+    const faculty = this.db.prepare("SELECT * FROM faculty ORDER BY id DESC").all().map((row: any) => ({
+      ...row,
+      compliance: parseJSON(row.compliance, {}),
+      weeklySchedule: parseJSON(row.weeklySchedule, []),
+      permissions: parseJSON(row.permissions, [])
+    })) as FacultyMember[];
+
+    const clinicalFields = this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
+
+    const sections = this.db.prepare("SELECT * FROM sections").all().map((row: any) => ({
+      ...row,
+      // facultyId puede ser NULL tras un ON DELETE SET NULL; se normaliza a string vacío
+      facultyId: row.facultyId ?? '',
+      schedule: parseJSON(row.schedule, [])
+    })) as AcademicSection[];
+
+    const sectionDailyRecords = this.db.prepare("SELECT * FROM section_daily_records ORDER BY date DESC").all().map((row: any) => ({
+      ...row,
+      facultyPresent: Boolean(row.facultyPresent),
+      signature: Boolean(row.signature),
+      absentStudentIds: parseJSON(row.absentStudentIds, [])
+    })) as SectionDailyRecord[];
+
+    const rotations = this.db.prepare("SELECT * FROM rotations").all() as Rotation[];
+    const activities = this.db.prepare("SELECT * FROM activities").all() as Activity[];
+
+    return {
+      students,
+      modules,
+      minutes,
+      faculty,
+      clinicalFields,
+      sections,
+      sectionDailyRecords,
+      rotations,
+      activities
+    };
   }
 
   getUploadsDir() {
@@ -233,20 +474,27 @@ export class JsonDatabase {
   // --- Helpers Específicos ---
 
   async updateStudent(id: string, updates: Partial<Student>) {
-    if (!this.data) return;
-    const index = this.data.students.findIndex(s => s.id === id);
-    if (index !== -1) {
-      this.data.students[index] = { ...this.data.students[index], ...updates };
-      await this.save();
-      return this.data.students[index];
-    }
-    return null;
+    const row = this.db.prepare("SELECT * FROM students WHERE id = ?").get(id) as any;
+    if (!row) return null;
+
+    const kardex = row.kardex ? JSON.parse(row.kardex) : undefined;
+    const student: Student = { ...row, alert: Boolean(row.alert), kardex };
+    const updated = { ...student, ...updates };
+
+    const stmt = this.db.prepare(`UPDATE students SET name=?, enrollmentId=?, semester=?, status=?, gpa=?, attendance=?, email=?, cohort=?, tutor=?, alert=?, kardex=? WHERE id=?`);
+    stmt.run(updated.name, updated.enrollmentId, updated.semester, updated.status, updated.gpa, updated.attendance, updated.email, updated.cohort, updated.tutor, updated.alert ? 1 : 0, updated.kardex ? JSON.stringify(updated.kardex) : null, id);
+
+    return updated;
   }
 
   async updateModulePlanningUnit(moduleId: string, unitId: string, completedSessions: number) {
-    if (!this.data) return;
-    const module = this.data.modules.find(m => m.id === moduleId);
-    if (module && module.planning) {
+    const row = this.db.prepare("SELECT * FROM modules WHERE id = ?").get(moduleId) as any;
+    if (!row) return null;
+
+    const sem = isNaN(Number(row.semester)) ? row.semester : Number(row.semester);
+    const module: Module = { ...row, semester: sem, competencies: JSON.parse(row.competencies || "[]"), planning: JSON.parse(row.planning || "null") };
+
+    if (module.planning) {
       const unit = module.planning.units.find(u => u.id === unitId);
       if (unit) {
         const safeCompletedSessions = Math.max(0, Math.min(unit.sessions, Math.round(Number(completedSessions) || 0)));
@@ -269,7 +517,7 @@ export class JsonDatabase {
           unit.status = 'pendiente';
         }
 
-        await this.save();
+        this.db.prepare("UPDATE modules SET planning=? WHERE id=?").run(JSON.stringify(module.planning), moduleId);
         return unit;
       }
     }
@@ -282,186 +530,152 @@ export class JsonDatabase {
     fileUrl: string,
     fileName: string
   ) {
-    if (!this.data) return null;
-    const moduleIndex = this.data.modules.findIndex((item) => item.id === moduleId);
-
-    if (moduleIndex === -1) {
-      return null;
-    }
+    const row = this.db.prepare("SELECT * FROM modules WHERE id = ?").get(moduleId) as any;
+    if (!row) return null;
 
     if (type === 'syllabus') {
-      this.data.modules[moduleIndex].syllabusUrl = fileUrl;
-      this.data.modules[moduleIndex].syllabusFileName = fileName;
+      this.db.prepare("UPDATE modules SET syllabusUrl=?, syllabusFileName=? WHERE id=?").run(fileUrl, fileName, moduleId);
     } else {
-      this.data.modules[moduleIndex].didacticPlanningUrl = fileUrl;
-      this.data.modules[moduleIndex].didacticPlanningFileName = fileName;
+      this.db.prepare("UPDATE modules SET didacticPlanningUrl=?, didacticPlanningFileName=? WHERE id=?").run(fileUrl, fileName, moduleId);
     }
 
-    await this.save();
-    return this.data.modules[moduleIndex];
+    const updatedRow = this.db.prepare("SELECT * FROM modules WHERE id = ?").get(moduleId) as any;
+    const sem = isNaN(Number(updatedRow.semester)) ? updatedRow.semester : Number(updatedRow.semester);
+    return { ...updatedRow, semester: sem, competencies: JSON.parse(updatedRow.competencies || "[]"), planning: JSON.parse(updatedRow.planning || "null") } as Module;
   }
 
   async updateFaculty(id: string, updates: Partial<FacultyMember>) {
-    if (!this.data) return null;
-    const index = this.data.faculty.findIndex(f => f.id === id);
-    
-    if (index !== -1) {
-      const oldName = this.data.faculty[index].name;
-      this.data.faculty[index] = normalizeFacultyMember({ ...this.data.faculty[index], ...updates });
-      
-      const newName = this.data.faculty[index].name;
-      
-      // Actualización en Cascada: si el nombre cambió, actualizar todos los módulos que lo tengan asignado
-      if (updates.name && oldName !== newName) {
-        this.data.modules.forEach(m => {
-          if (m.instructor === oldName) {
-            m.instructor = newName;
-          }
-        });
+    const row = this.db.prepare("SELECT * FROM faculty WHERE id = ?").get(id) as any;
+    if (!row) return null;
+
+    const faculty: FacultyMember = { ...row, compliance: JSON.parse(row.compliance || "{}"), weeklySchedule: JSON.parse(row.weeklySchedule || "[]"), permissions: JSON.parse(row.permissions || "[]") };
+    const updated = normalizeFacultyMember({ ...faculty, ...updates });
+
+    const tx = this.db.transaction(() => {
+      this.db.prepare(`UPDATE faculty SET name=?, category=?, level=?, dedication=?, seniority=?, hireDate=?, compliance=?, adscription=?, email=?, phone=?, photo=?, weeklySchedule=?, permissions=? WHERE id=?`).run(updated.name, updated.category, updated.level, updated.dedication, updated.seniority, updated.hireDate, JSON.stringify(updated.compliance), updated.adscription, updated.email, updated.phone, updated.photo, JSON.stringify(updated.weeklySchedule), JSON.stringify(updated.permissions), id);
+
+      if (updates.name && faculty.name !== updated.name) {
+        this.db.prepare("UPDATE modules SET instructor=? WHERE instructor=?").run(updated.name, faculty.name);
       }
-      
-      await this.save();
-      return this.data.faculty[index];
-    }
-    return null;
+    });
+    tx();
+    return updated;
   }
 
   async addFaculty(facultyMember: FacultyMember) {
-    if (!this.data) return null;
-    if (this.data.faculty.some((member) => member.id === facultyMember.id)) {
-      return null;
-    }
+    const existing = this.db.prepare("SELECT id FROM faculty WHERE id = ?").get(facultyMember.id);
+    if (existing) return null;
 
-    this.data.faculty.unshift(normalizeFacultyMember(facultyMember));
-    await this.save();
-    return this.data.faculty[0];
+    const f = normalizeFacultyMember(facultyMember);
+    this.db.prepare(`INSERT INTO faculty (id, name, category, level, dedication, seniority, hireDate, compliance, adscription, email, phone, photo, weeklySchedule, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(f.id, f.name, f.category, f.level, f.dedication, f.seniority, f.hireDate, JSON.stringify(f.compliance || {}), f.adscription, f.email, f.phone, f.photo, JSON.stringify(f.weeklySchedule || []), JSON.stringify(f.permissions || []));
+
+    return f;
   }
 
   async deleteFaculty(id: string) {
-    if (!this.data) return false;
+    const existing = this.db.prepare("SELECT name FROM faculty WHERE id = ?").get(id) as { name: string } | undefined;
+    if (!existing) return false;
 
-    const facultyMember = this.data.faculty.find((member) => member.id === id);
-    if (!facultyMember) {
-      return false;
-    }
-
-    this.data.faculty = this.data.faculty.filter((member) => member.id !== id);
-    this.data.modules = this.data.modules.map((module) =>
-      module.instructor === facultyMember.name
-        ? { ...module, instructor: 'Sin asignar' }
-        : module
-    );
-    this.data.sections = this.data.sections.map((section) =>
-      section.facultyId === id
-        ? { ...section, facultyId: 'SIN ASIGNAR' }
-        : section
-    );
-
-    await this.save();
+    const tx = this.db.transaction(() => {
+      // Actualizar referencias ANTES de eliminar para respetar llaves foráneas
+      this.db.prepare("UPDATE sections SET facultyId=NULL WHERE facultyId=?").run(id);
+      this.db.prepare("UPDATE modules SET instructor='Sin asignar' WHERE instructor=?").run(existing.name);
+      this.db.prepare("DELETE FROM faculty WHERE id = ?").run(id);
+    });
+    tx();
     return true;
   }
 
   async importFaculty(facultyMembers: FacultyMember[]) {
-    if (!this.data) {
-      return { created: 0, updated: 0, total: 0, faculty: [] as FacultyMember[] };
-    }
-
     let created = 0;
     let updated = 0;
 
-    for (const rawMember of facultyMembers) {
-      const normalizedMember = normalizeFacultyMember(rawMember);
-      const existingIndex = this.data.faculty.findIndex((member) => member.id === normalizedMember.id);
+    const tx = this.db.transaction(() => {
+      for (const rawMember of facultyMembers) {
+        const normalizedMember = normalizeFacultyMember(rawMember);
+        const existing = this.db.prepare("SELECT name FROM faculty WHERE id = ?").get(normalizedMember.id) as { name: string } | undefined;
 
-      if (existingIndex === -1) {
-        this.data.faculty.unshift(normalizedMember);
-        created += 1;
-        continue;
+        if (!existing) {
+          this.db.prepare(`INSERT INTO faculty (id, name, category, level, dedication, seniority, hireDate, compliance, adscription, email, phone, photo, weeklySchedule, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(normalizedMember.id, normalizedMember.name, normalizedMember.category, normalizedMember.level, normalizedMember.dedication, normalizedMember.seniority, normalizedMember.hireDate, JSON.stringify(normalizedMember.compliance || {}), normalizedMember.adscription, normalizedMember.email, normalizedMember.phone, normalizedMember.photo, JSON.stringify(normalizedMember.weeklySchedule || []), JSON.stringify(normalizedMember.permissions || []));
+          created += 1;
+        } else {
+          const f = normalizedMember;
+          this.db.prepare(`UPDATE faculty SET name=?, category=?, level=?, dedication=?, seniority=?, hireDate=?, compliance=?, adscription=?, email=?, phone=?, photo=?, weeklySchedule=?, permissions=? WHERE id=?`).run(f.name, f.category, f.level, f.dedication, f.seniority, f.hireDate, JSON.stringify(f.compliance || {}), f.adscription, f.email, f.phone, f.photo, JSON.stringify(f.weeklySchedule || []), JSON.stringify(f.permissions || []), f.id);
+
+          if (existing.name !== f.name) {
+            this.db.prepare("UPDATE modules SET instructor=? WHERE instructor=?").run(f.name, existing.name);
+          }
+          updated += 1;
+        }
       }
+    });
+    tx();
 
-      const oldName = this.data.faculty[existingIndex].name;
-      this.data.faculty[existingIndex] = {
-        ...this.data.faculty[existingIndex],
-        ...normalizedMember,
-      };
+    const total = (this.db.prepare("SELECT count(*) as count FROM faculty").get() as any).count;
+    const faculty = this.db.prepare("SELECT * FROM faculty ORDER BY id DESC").all().map((row: any) => ({
+      ...row,
+      compliance: JSON.parse(row.compliance || "{}"),
+      weeklySchedule: JSON.parse(row.weeklySchedule || "[]"),
+      permissions: JSON.parse(row.permissions || "[]")
+    })) as FacultyMember[];
 
-      if (oldName !== normalizedMember.name) {
-        this.data.modules = this.data.modules.map((module) =>
-          module.instructor === oldName
-            ? { ...module, instructor: normalizedMember.name }
-            : module
-        );
-      }
-
-      updated += 1;
-    }
-
-    await this.save();
-
-    return {
-      created,
-      updated,
-      total: this.data.faculty.length,
-      faculty: this.data.faculty,
-    };
+    return { created, updated, total, faculty };
   }
 
   async addStudent(student: Student) {
-    if (!this.data) return null;
-    this.data.students.unshift(student); // Add to the top
-    await this.save();
+    const existing = this.db.prepare("SELECT id FROM students WHERE id = ?").get(student.id);
+    if (existing) return null;
+    this.db.prepare(`INSERT INTO students (id, name, enrollmentId, semester, status, gpa, attendance, email, cohort, tutor, alert, kardex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(student.id, student.name, student.enrollmentId, student.semester, student.status, student.gpa, student.attendance, student.email, student.cohort, student.tutor, student.alert ? 1 : 0, student.kardex ? JSON.stringify(student.kardex) : null);
     return student;
   }
 
   async deleteStudent(id: string) {
-    if (!this.data) return false;
-    const initialLength = this.data.students.length;
-    this.data.students = this.data.students.filter(s => s.id !== id);
-    if (this.data.students.length < initialLength) {
-      await this.save();
-      return true;
-    }
-    return false;
+    const tx = this.db.transaction(() => {
+      // Eliminar rotaciones asociadas antes de borrar el alumno (integridad referencial)
+      this.db.prepare("DELETE FROM rotations WHERE studentId = ?").run(id);
+      const res = this.db.prepare("DELETE FROM students WHERE id = ?").run(id);
+      return res.changes > 0;
+    });
+    return tx();
   }
 
   async updateSection(id: string, updates: Partial<AcademicSection>) {
-    if (!this.data) return null;
-    const index = this.data.sections.findIndex(s => s.id === id);
-    if (index !== -1) {
-      const normalizedUpdates = updates.schedule
-        ? {
-            ...updates,
-            schedule: updates.schedule.map((slot) => ({
-              ...slot,
-              day: normalizeScheduleDay(slot.day),
-            })),
-          }
-        : updates;
-      this.data.sections[index] = normalizeSection({ ...this.data.sections[index], ...normalizedUpdates });
-      await this.save();
-      return this.data.sections[index];
-    }
-    return null;
+    const row = this.db.prepare("SELECT * FROM sections WHERE id = ?").get(id) as any;
+    if (!row) return null;
+
+    const section: AcademicSection = { ...row, schedule: JSON.parse(row.schedule || "[]") };
+    const normalizedUpdates = updates.schedule
+      ? {
+        ...updates,
+        schedule: updates.schedule.map((slot) => ({
+          ...slot,
+          day: normalizeScheduleDay(slot.day),
+        })),
+      }
+      : updates;
+    const updated = normalizeSection({ ...section, ...normalizedUpdates });
+
+    this.db.prepare(`UPDATE sections SET moduleId=?, moduleName=?, facultyId=?, groupCode=?, semester=?, room=?, roomType=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(updated.moduleId, updated.moduleName, updated.facultyId || null, updated.groupCode, updated.semester ?? null, updated.room, updated.roomType, updated.capacity, updated.enrolled, JSON.stringify(updated.schedule), id);
+
+    return updated;
   }
 
   async updateMinuteTask(minuteId: string, taskId: string, status: ManualTask['status']) {
-    if (!this.data) return null;
-    const minute = this.data.minutes.find((item) => item.id === minuteId);
-    const task = minute?.tasks.find((item) => item.id === taskId);
+    const row = this.db.prepare("SELECT * FROM minutes WHERE id = ?").get(minuteId) as any;
+    if (!row) return null;
 
-    if (!task) {
-      return null;
-    }
+    const minute: AcademicMinute = { ...row, tasks: JSON.parse(row.tasks || "[]"), fullData: JSON.parse(row.fullData || "null") };
+    const task = minute.tasks.find((item) => item.id === taskId);
+
+    if (!task) return null;
 
     task.status = status;
-    await this.save();
+    this.db.prepare("UPDATE minutes SET tasks=? WHERE id=?").run(JSON.stringify(minute.tasks), minuteId);
     return task;
   }
 
   async addClinicalField(field: ClinicalField) {
-    if (!this.data) return null;
-    this.data.clinicalFields.unshift(field);
-    await this.save();
+    this.db.prepare(`INSERT INTO clinical_fields (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(field.id, field.name, field.type, field.level, field.slots, field.status, field.pertinence, field.lastInspection, field.agreementExpiry);
     return field;
   }
 
@@ -470,25 +684,18 @@ export class JsonDatabase {
     date: string,
     updates: Partial<Omit<SectionDailyRecord, 'id' | 'sectionId' | 'date' | 'updatedAt'>>
   ) {
-    if (!this.data) return null;
-
     const recordId = `${sectionId}:${date}`;
-    const index = this.data.sectionDailyRecords.findIndex(
-      (record) => record.sectionId === sectionId && record.date === date
-    );
+    const row = this.db.prepare("SELECT * FROM section_daily_records WHERE id = ?").get(recordId) as any;
 
-    const baseRecord: SectionDailyRecord =
-      index >= 0
-        ? this.data.sectionDailyRecords[index]
-        : {
-            id: recordId,
-            sectionId,
-            date,
-            facultyPresent: true,
-            absentStudentIds: [],
-            signature: false,
-            updatedAt: new Date().toISOString(),
-          };
+    const baseRecord: SectionDailyRecord = row ? { ...row, facultyPresent: Boolean(row.facultyPresent), signature: Boolean(row.signature), absentStudentIds: JSON.parse(row.absentStudentIds || "[]") } : {
+      id: recordId,
+      sectionId,
+      date,
+      facultyPresent: true,
+      absentStudentIds: [],
+      signature: false,
+      updatedAt: new Date().toISOString(),
+    };
 
     const nextRecord = normalizeSectionDailyRecord({
       ...baseRecord,
@@ -496,16 +703,14 @@ export class JsonDatabase {
       updatedAt: new Date().toISOString(),
     });
 
-    if (index >= 0) {
-      this.data.sectionDailyRecords[index] = nextRecord;
+    if (row) {
+      this.db.prepare(`UPDATE section_daily_records SET facultyPresent=?, absentStudentIds=?, justification=?, justificationType=?, topic=?, signature=?, updatedAt=? WHERE id=?`).run(nextRecord.facultyPresent ? 1 : 0, JSON.stringify(nextRecord.absentStudentIds), nextRecord.justification, nextRecord.justificationType, nextRecord.topic, nextRecord.signature ? 1 : 0, nextRecord.updatedAt, recordId);
     } else {
-      this.data.sectionDailyRecords.unshift(nextRecord);
+      this.db.prepare(`INSERT INTO section_daily_records (id, sectionId, date, facultyPresent, absentStudentIds, justification, justificationType, topic, signature, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(nextRecord.id, nextRecord.sectionId, nextRecord.date, nextRecord.facultyPresent ? 1 : 0, JSON.stringify(nextRecord.absentStudentIds), nextRecord.justification, nextRecord.justificationType, nextRecord.topic, nextRecord.signature ? 1 : 0, nextRecord.updatedAt);
     }
-
-    await this.save();
     return nextRecord;
   }
 }
 
 // Instancia global
-export const db = new JsonDatabase();
+export const db = new SqliteDatabase();

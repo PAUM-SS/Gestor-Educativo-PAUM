@@ -127,7 +127,7 @@ export interface ClinicalField {
   type: 'Público' | 'Privado' | 'Social' | 'Rescate';
   level: 1 | 2 | 3;
   slots: number;
-  status: 'Activo' | 'En RevisiÃ³n' | 'Vencido';
+  status: 'Activo' | 'En Revisión' | 'Vencido';
   pertinence: string;
   lastInspection: string;
   agreementExpiry: string;
@@ -185,6 +185,8 @@ export interface AcademicSection {
   capacity: number;
   enrolled: number;
   schedule: ClassSchedule[];
+  /** Período académico al que pertenece la sección (e.g. '2024-1') */
+  semester?: string;
 }
 
 export interface SectionDailyRecord {
@@ -210,6 +212,8 @@ export interface Rotation {
   endDate: string;
   supervisor: string;
   status: 'programada' | 'en_progreso' | 'completada' | 'cancelada';
+  /** FK al campo clínico del catálogo (clinical_fields.id) */
+  clinicalFieldId?: string;
 }
 
 export interface Activity {
@@ -217,5 +221,7 @@ export interface Activity {
   type: 'evaluation' | 'rotation' | 'lecture' | 'seminar';
   title: string;
   timestamp: string;
+  /** ID de la entidad relacionada (rotación, módulo, etc.) */
+  relatedId?: string;
   status: string;
 }
