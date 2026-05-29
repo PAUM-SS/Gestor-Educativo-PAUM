@@ -54,3 +54,32 @@ export const curriculumService = {
     }
   }
 };
+
+// Calcula créditos completados vs totales, agrupados por nivel
+export function calcCurriculumProgress(modules: Module[]) {
+  const levels = ['Básico', 'Formativo', 'Minerva', 'Práctica/Servicio'] as const;
+
+  const byLevel = levels.map(level => {
+    const ofLevel = modules.filter(m => m.level === level);
+    const total     = ofLevel.reduce((sum, m) => sum + m.credits, 0);
+    const completed = ofLevel
+      .filter(m => m.status === 'completado')
+      .reduce((sum, m) => sum + m.credits, 0);
+    return {
+      level,
+      completed,
+      total,
+      pct: total > 0 ? Math.round((completed / total) * 100) : 0,
+    };
+  });
+
+  const totalCredits    = modules.reduce((sum, m) => sum + m.credits, 0);
+  const completedCredits = modules
+    .filter(m => m.status === 'completado')
+    .reduce((sum, m) => sum + m.credits, 0);
+  const totalPct = totalCredits > 0
+    ? Math.round((completedCredits / totalCredits) * 100)
+    : 0;
+
+  return { byLevel, totalCredits, completedCredits, totalPct };
+}

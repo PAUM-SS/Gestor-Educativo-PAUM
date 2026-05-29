@@ -8,7 +8,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
+const { PDFParse } = createRequire(import.meta.url)('pdf-parse');
 
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';

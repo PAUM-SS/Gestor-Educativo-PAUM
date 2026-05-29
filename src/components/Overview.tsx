@@ -20,6 +20,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { minutesService } from '../services/minutesService';
+import { curriculumService, calcCurriculumProgress } from '../services/curriculumService';
+import { Module } from '../types';
 import { AcademicMinute } from '../types';
 import PAUMShield from './PAUMShield';
 
@@ -29,10 +31,14 @@ interface OverviewProps {
 
 export default function Overview({ onViewChange }: OverviewProps) {
   const [minutes, setMinutes] = useState<AcademicMinute[]>([]);
-
+  const [modules, setModules] = useState<Module[]>([]);
   useEffect(() => {
     minutesService.getMinutes().then(setMinutes);
+    curriculumService.getModules().then(setModules);
   }, []);
+  const progress = calcCurriculumProgress(modules);
+  const basico    = progress.byLevel.find(l => l.level === 'Básico')!;
+  const formativo = progress.byLevel.find(l => l.level === 'Formativo')!;
 
   const stats = [
     { label: 'Matrícula PAUM', value: '245' },
@@ -132,23 +138,52 @@ export default function Overview({ onViewChange }: OverviewProps) {
           
           <div className="space-y-6">
             <p className="text-[11px] text-slate-500 leading-tight mb-4">Métrica que pondera la entrega de contenidos temáticos (avance didáctico) frente al cumplimiento de créditos reglamentarios por nivel.</p>
+
+            {/* ── Nivel Básico ── */}
             <div>
               <div className="flex justify-between mb-2">
                 <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Básico</span>
-                <span className="text-xs font-black text-gb-primary">68 / 71</span>
+                <span className="text-xs font-black text-gb-primary">{basico.completed} / {basico.total}</span>
               </div>
               <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                <motion.div initial={{ width: 0 }} animate={{ width: '95%' }} className="absolute h-full bg-gb-primary" />
+                <motion.div initial={{ width: 0 }} animate={{ width: `${basico.pct}%` }} className="absolute h-full bg-gb-primary" />
               </div>
             </div>
 
+            {/* ── Nivel Formativo ── */}
             <div>
               <div className="flex justify-between mb-2">
                 <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Formativo</span>
-                <span className="text-xs font-black text-gb-accent">53 / 94</span>
+                <span className="text-xs font-black text-gb-accent">{formativo.completed} / {formativo.total}</span>
               </div>
               <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                <motion.div initial={{ width: 0 }} animate={{ width: '56%' }} className="absolute h-full bg-gb-accent" />
+                <motion.div initial={{ width: 0 }} animate={{ width: `${formativo.pct}%` }} className="absolute h-full bg-gb-accent" />
+              </div>
+            </div>
+
+            {/* ── Nivel Minerva ── */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Nivel Minerva</span>
+                <span className="text-xs font-black text-gb-primary">
+                  {progress.byLevel.find(l => l.level === 'Minerva')!.completed} / {progress.byLevel.find(l => l.level === 'Minerva')!.total}
+                </span>
+              </div>
+              <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress.byLevel.find(l => l.level === 'Minerva')!.pct}%` }} className="absolute h-full bg-gb-primary" />
+              </div>
+            </div>
+
+            {/* ── Práctica / Servicio ── */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-xs font-bold text-gb-secondary uppercase tracking-wider">Práctica / Servicio</span>
+                <span className="text-xs font-black text-gb-accent">
+                  {progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.completed} / {progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.total}
+                </span>
+              </div>
+              <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress.byLevel.find(l => l.level === 'Práctica/Servicio')!.pct}%` }} className="absolute h-full bg-gb-accent" />
               </div>
             </div>
 
@@ -158,7 +193,7 @@ export default function Overview({ onViewChange }: OverviewProps) {
                 <p className="text-sm font-bold text-gb-secondary">Validación de PP / SS en curso</p>
               </div>
               <div className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                73% Total
+                {progress.totalPct}% Total
               </div>
             </div>
           </div>
