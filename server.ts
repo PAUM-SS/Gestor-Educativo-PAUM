@@ -8,9 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
-import { createRequire } from 'module';
-const { PDFParse } = createRequire(import.meta.url)('pdf-parse');
-
+import { PDFParse } from 'pdf-parse';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
 import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary } from './src/types';
@@ -324,9 +322,9 @@ function normalizeWeeklySchedule(value: unknown) {
   const parts = Array.isArray(value)
     ? value
     : String(value)
-        .split(/[;,|/]/)
-        .map((item) => item.trim())
-        .filter(Boolean);
+      .split(/[;,|/]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
 
   const uniqueDays = new Set<FacultyMember['weeklySchedule'][number]>();
 
@@ -400,18 +398,18 @@ function toFacultyMember(raw: Record<string, any>): FacultyMember | null {
 
   const id = String(
     normalizedRecord.id ??
-      normalizedRecord.matricula ??
-      normalizedRecord.clave ??
-      normalizedRecord.numeroempleado ??
-      normalizedRecord.empleadoid ??
-      ''
+    normalizedRecord.matricula ??
+    normalizedRecord.clave ??
+    normalizedRecord.numeroempleado ??
+    normalizedRecord.empleadoid ??
+    ''
   ).trim();
   const name = String(
     normalizedRecord.name ??
-      normalizedRecord.nombre ??
-      normalizedRecord.docente ??
-      normalizedRecord.profesor ??
-      ''
+    normalizedRecord.nombre ??
+    normalizedRecord.docente ??
+    normalizedRecord.profesor ??
+    ''
   ).trim();
 
   if (!id || !name) {
@@ -434,19 +432,19 @@ function toFacultyMember(raw: Record<string, any>): FacultyMember | null {
       cedula: normalizeBoolean(normalizedRecord.cedula ?? normalizedCompliance.cedula),
       medicalExam: normalizeBoolean(
         normalizedRecord.medicalexam ??
-          normalizedRecord.examemedico ??
-          normalizedRecord.examenmedico ??
-          normalizedCompliance.medicalexam ??
-          normalizedCompliance.examemedico ??
-          normalizedCompliance.examenmedico
+        normalizedRecord.examemedico ??
+        normalizedRecord.examenmedico ??
+        normalizedCompliance.medicalexam ??
+        normalizedCompliance.examemedico ??
+        normalizedCompliance.examenmedico
       ),
       inductionCourse: normalizeBoolean(
         normalizedRecord.inductioncourse ??
-          normalizedRecord.induccion ??
-          normalizedRecord.cursodeinduccion ??
-          normalizedCompliance.inductioncourse ??
-          normalizedCompliance.induccion ??
-          normalizedCompliance.cursodeinduccion
+        normalizedRecord.induccion ??
+        normalizedRecord.cursodeinduccion ??
+        normalizedCompliance.inductioncourse ??
+        normalizedCompliance.induccion ??
+        normalizedCompliance.cursodeinduccion
       ),
       annualEvaluation: Math.min(
         100,
@@ -455,11 +453,11 @@ function toFacultyMember(raw: Record<string, any>): FacultyMember | null {
           Math.round(
             normalizeNumber(
               normalizedRecord.annualevaluation ??
-                normalizedRecord.evaluacionanual ??
-                normalizedRecord.evaluacion ??
-                normalizedCompliance.annualevaluation ??
-                normalizedCompliance.evaluacionanual ??
-                normalizedCompliance.evaluacion,
+              normalizedRecord.evaluacionanual ??
+              normalizedRecord.evaluacion ??
+              normalizedCompliance.annualevaluation ??
+              normalizedCompliance.evaluacionanual ??
+              normalizedCompliance.evaluacion,
               0
             )
           )
@@ -471,10 +469,10 @@ function toFacultyMember(raw: Record<string, any>): FacultyMember | null {
     phone: String(normalizedRecord.phone ?? normalizedRecord.telefono ?? normalizedRecord.celular ?? raw.phone ?? '').trim() || undefined,
     weeklySchedule: normalizeWeeklySchedule(
       normalizedRecord.weeklyschedule ??
-        normalizedRecord.horariosemanal ??
-        normalizedRecord.dias ??
-        normalizedRecord.diaspresenciales ??
-        raw.weeklySchedule
+      normalizedRecord.horariosemanal ??
+      normalizedRecord.dias ??
+      normalizedRecord.diaspresenciales ??
+      raw.weeklySchedule
     ),
     permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
   };
@@ -512,7 +510,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   app.get('/api/students', (_req, res) => {
     try {
       res.json(db.getData().students);
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
   });
@@ -522,7 +520,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const updated = await db.updateStudent(req.params.id, req.body);
       if (updated) res.json(updated);
       else res.status(404).json({ error: 'Student not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to update student' });
     }
   });
@@ -533,7 +531,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const created = await db.addStudent(newStudent);
       if (created) res.status(201).json(created);
       else res.status(500).json({ error: 'Failed to create student' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to create student' });
     }
   });
@@ -755,10 +753,10 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const pendingPreviousSemesters =
         matchedModuleIds.length > 0
           ? planModules.filter((m) => {
-              if (matchedModuleIdSet.has(m.id)) return false;
-              if (typeof m.semester !== 'number') return false;
-              return m.semester < calculatedSemester;
-            }).length
+            if (matchedModuleIdSet.has(m.id)) return false;
+            if (typeof m.semester !== 'number') return false;
+            return m.semester < calculatedSemester;
+          }).length
           : 0;
 
       const riskReasons: string[] = [];
@@ -850,7 +848,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const success = await db.deleteStudent(req.params.id);
       if (success) res.json({ success: true });
       else res.status(404).json({ error: 'Student not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to delete student' });
     }
   });
@@ -858,7 +856,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   app.get('/api/curriculum', (_req, res) => {
     try {
       res.json(db.getData().modules);
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
   });
@@ -869,7 +867,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const updated = await db.updateModulePlanningUnit(req.params.moduleId, req.params.unitId, completedSessions);
       if (updated) res.json(updated);
       else res.status(404).json({ error: 'Module/Unit not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to update planning' });
     }
   });
@@ -920,7 +918,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   app.get('/api/minutes', (_req, res) => {
     try {
       res.json(db.getData().minutes);
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
   });
@@ -928,7 +926,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   app.get('/api/faculty', (_req, res) => {
     try {
       res.json(db.getData().faculty);
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
   });
@@ -951,7 +949,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const created = await db.addFaculty(newFaculty);
       if (created) res.status(201).json(created);
       else res.status(500).json({ error: 'Failed to create faculty' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to create faculty' });
     }
   });
@@ -961,7 +959,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const updated = await db.updateFaculty(req.params.id, req.body);
       if (updated) res.json(updated);
       else res.status(404).json({ error: 'Faculty not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to update faculty' });
     }
   });
@@ -1028,8 +1026,8 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   });
 
   app.get('/api/sections', (_req, res) => {
-    try { res.json(db.getData().sections); } 
-    catch(e) { res.status(500).json({ error: 'DB not ready' }); }
+    try { res.json(db.getData().sections); }
+    catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
   app.put('/api/sections/:id', async (req, res) => {
@@ -1037,7 +1035,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const updated = await db.updateSection(req.params.id, req.body);
       if (updated) res.json(updated);
       else res.status(404).json({ error: 'Section not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to update section' });
     }
   });
@@ -1080,13 +1078,13 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   });
 
   app.get('/api/rotations', (_req, res) => {
-    try { res.json(db.getData().rotations); } 
-    catch(e) { res.status(500).json({ error: 'DB not ready' }); }
+    try { res.json(db.getData().rotations); }
+    catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
   app.get('/api/activities', (_req, res) => {
-    try { res.json(db.getData().activities); } 
-    catch(e) { res.status(500).json({ error: 'DB not ready' }); }
+    try { res.json(db.getData().activities); }
+    catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
   app.post('/api/reports', (req, res) => {

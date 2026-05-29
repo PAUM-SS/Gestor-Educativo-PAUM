@@ -340,50 +340,61 @@ export class SqliteDatabase {
       }
 
       const tx = this.db.transaction((data: DatabaseSchema) => {
-        const insertStudent = this.db.prepare(`INSERT INTO students (id, name, enrollmentId, semester, status, gpa, attendance, email, cohort, tutor, alert, kardex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const s of data.students || []) {
-          insertStudent.run(s.id, s.name, s.enrollmentId, s.semester, s.status, s.gpa, s.attendance, s.email, s.cohort, s.tutor, s.alert ? 1 : 0, s.kardex ? JSON.stringify(s.kardex) : null);
-        }
+        const insertStudent = this.db.prepare(`
+        INSERT OR IGNORE INTO students 
+        (id, name, enrollmentId, semester, status, gpa, attendance, email, cohort, tutor, alert, kardex) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertModule = this.db.prepare(`INSERT INTO modules (id, title, code, credits, description, instructor, competencies, status, semester, level, syllabusUrl, syllabusFileName, didacticPlanningUrl, didacticPlanningFileName, planning) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const m of data.modules || []) {
-          insertModule.run(m.id, m.title, m.code, m.credits, m.description, m.instructor, JSON.stringify(m.competencies || []), m.status, String(m.semester), m.level, m.syllabusUrl, m.syllabusFileName, m.didacticPlanningUrl, m.didacticPlanningFileName, m.planning ? JSON.stringify(m.planning) : null);
-        }
+        const insertModule = this.db.prepare(`
+        INSERT OR IGNORE INTO modules 
+        (id, title, code, credits, description, instructor, competencies, status, semester, level, 
+        syllabusUrl, syllabusFileName, didacticPlanningUrl, didacticPlanningFileName, planning) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertMinute = this.db.prepare(`INSERT INTO minutes (id, date, subject, tasks, fullData) VALUES (?, ?, ?, ?, ?)`);
-        for (const m of data.minutes || []) {
-          insertMinute.run(m.id, m.date, m.subject, JSON.stringify(m.tasks || []), m.fullData ? JSON.stringify(m.fullData) : null);
-        }
+        const insertMinute = this.db.prepare(`
+        INSERT OR IGNORE INTO minutes (id, date, subject, tasks, fullData) 
+        VALUES (?, ?, ?, ?, ?)
+        `);
 
-        const insertFaculty = this.db.prepare(`INSERT INTO faculty (id, name, category, level, dedication, seniority, hireDate, compliance, adscription, email, phone, photo, weeklySchedule, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const f of data.faculty || []) {
-          insertFaculty.run(f.id, f.name, f.category, f.level, f.dedication, f.seniority, f.hireDate, JSON.stringify(f.compliance || {}), f.adscription, f.email, f.phone, f.photo, JSON.stringify(f.weeklySchedule || []), JSON.stringify(f.permissions || []));
-        }
+        const insertFaculty = this.db.prepare(`
+        INSERT OR IGNORE INTO faculty 
+        (id, name, category, level, dedication, seniority, hireDate, compliance, adscription, 
+        email, phone, photo, weeklySchedule, permissions) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertCF = this.db.prepare(`INSERT INTO clinical_fields (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const c of data.clinicalFields || []) {
-          insertCF.run(c.id, c.name, c.type, c.level, c.slots, c.status, c.pertinence, c.lastInspection, c.agreementExpiry);
-        }
+        const insertCF = this.db.prepare(`
+        INSERT OR IGNORE INTO clinical_fields 
+        (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertSection = this.db.prepare(`INSERT INTO sections (id, moduleId, moduleName, facultyId, groupCode, semester, room, roomType, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const s of data.sections || []) {
-          insertSection.run(s.id, s.moduleId, s.moduleName, s.facultyId, s.groupCode, s.semester ?? null, s.room, s.roomType, s.capacity, s.enrolled, JSON.stringify(s.schedule || []));
-        }
+        const insertSection = this.db.prepare(`
+        INSERT OR IGNORE INTO sections 
+        (id, moduleId, moduleName, facultyId, groupCode, semester, room, roomType, capacity, enrolled, schedule) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertSDR = this.db.prepare(`INSERT INTO section_daily_records (id, sectionId, date, facultyPresent, absentStudentIds, justification, justificationType, topic, signature, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const r of data.sectionDailyRecords || []) {
-          insertSDR.run(r.id, r.sectionId, r.date, r.facultyPresent ? 1 : 0, JSON.stringify(r.absentStudentIds || []), r.justification, r.justificationType, r.topic, r.signature ? 1 : 0, r.updatedAt);
-        }
+        const insertSDR = this.db.prepare(`
+        INSERT OR IGNORE INTO section_daily_records 
+        (id, sectionId, date, facultyPresent, absentStudentIds, justification, justificationType, 
+        topic, signature, updatedAt) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertRot = this.db.prepare(`INSERT INTO rotations (id, studentId, studentName, clinicalFieldId, facility, department, startDate, endDate, supervisor, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        for (const r of data.rotations || []) {
-          insertRot.run(r.id, r.studentId, r.studentName, r.clinicalFieldId ?? null, r.facility, r.department, r.startDate, r.endDate, r.supervisor, r.status);
-        }
+        const insertRot = this.db.prepare(`
+        INSERT OR IGNORE INTO rotations 
+        (id, studentId, studentName, clinicalFieldId, facility, department, startDate, endDate, supervisor, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
-        const insertAct = this.db.prepare(`INSERT INTO activities (id, type, title, timestamp, relatedId, status) VALUES (?, ?, ?, ?, ?, ?)`);
-        for (const a of data.activities || []) {
-          insertAct.run(a.id, a.type, a.title, a.timestamp, a.relatedId ?? null, a.status);
-        }
+        const insertAct = this.db.prepare(`
+        INSERT OR IGNORE INTO activities 
+        (id, type, title, timestamp, relatedId, status) 
+        VALUES (?, ?, ?, ?, ?, ?)
+        `);
 
         this.db
           .prepare("INSERT OR IGNORE INTO _meta (key, value) VALUES ('seeded', 'true')")
