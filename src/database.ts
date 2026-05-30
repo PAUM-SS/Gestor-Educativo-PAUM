@@ -4,18 +4,6 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-// Import initial mock data as fallback/seed
-import {
-  MOCK_STUDENTS,
-  MOCK_MODULES,
-  MOCK_MINUTES,
-  MOCK_FACULTY,
-  MOCK_CLINICAL_FIELDS,
-  MOCK_SECTIONS,
-  MOCK_ROTATIONS,
-  MOCK_ACTIVITIES
-} from './constants';
-
 import { Student, Module, AcademicMinute, FacultyMember, AcademicSection, ClassSchedule, ManualTask, Rotation, Activity, ClinicalField, SectionDailyRecord } from './types';
 
 export interface DatabaseSchema {
@@ -325,20 +313,6 @@ export class SqliteDatabase {
         }
       }
 
-      if (!initialData) {
-        initialData = {
-          students: MOCK_STUDENTS,
-          modules: MOCK_MODULES,
-          minutes: MOCK_MINUTES,
-          faculty: MOCK_FACULTY.map(normalizeFacultyMember),
-          clinicalFields: MOCK_CLINICAL_FIELDS,
-          sections: MOCK_SECTIONS.map(normalizeSection),
-          sectionDailyRecords: [],
-          rotations: MOCK_ROTATIONS,
-          activities: MOCK_ACTIVITIES
-        };
-      }
-
       const tx = this.db.transaction((data: DatabaseSchema) => {
         const insertStudent = this.db.prepare(`
         INSERT OR IGNORE INTO students 
@@ -411,71 +385,76 @@ export class SqliteDatabase {
     console.log(`[Base de Datos] SQLite Lista en: ${this.dbPath}`);
   }
 
-  getData(): DatabaseSchema {
-    const parseJSON = (str: any, fallback: any) => {
-      if (!str) return fallback;
-      try { return JSON.parse(str); } catch { return fallback; }
-    };
+  private parseJSON(str: any, fallback: any) {
+    if (!str) return fallback;
+    try { return JSON.parse(str); } catch { return fallback; }
+  }
 
-    const students = this.db.prepare("SELECT * FROM students ORDER BY id DESC").all().map((row: any) => ({
+  getStudents(): Student[] {
+    return this.db.prepare("SELECT * FROM students ORDER BY id DESC").all().map((row: any) => ({
       ...row,
       alert: Boolean(row.alert),
-      kardex: parseJSON(row.kardex, undefined)
+      kardex: this.parseJSON(row.kardex, undefined)
     })) as Student[];
+  }
 
-    const modules = this.db.prepare("SELECT * FROM modules").all().map((row: any) => {
+  getModules(): Module[] {
+    return this.db.prepare("SELECT * FROM modules").all().map((row: any) => {
       const sem = isNaN(Number(row.semester)) ? row.semester : Number(row.semester);
       return {
         ...row,
         semester: sem,
-        competencies: parseJSON(row.competencies, []),
-        planning: parseJSON(row.planning, undefined)
+        competencies: this.parseJSON(row.competencies, []),
+        planning: this.parseJSON(row.planning, undefined)
       };
     }) as Module[];
+  }
 
-    const minutes = this.db.prepare("SELECT * FROM minutes ORDER BY date DESC").all().map((row: any) => ({
+  getMinutes(): AcademicMinute[] {
+    return this.db.prepare("SELECT * FROM minutes ORDER BY date DESC").all().map((row: any) => ({
       ...row,
-      tasks: parseJSON(row.tasks, []),
-      fullData: parseJSON(row.fullData, undefined)
+      tasks: this.parseJSON(row.tasks, []),
+      fullData: this.parseJSON(row.fullData, undefined)
     })) as AcademicMinute[];
+  }
 
-    const faculty = this.db.prepare("SELECT * FROM faculty ORDER BY id DESC").all().map((row: any) => ({
+  getFaculty(): FacultyMember[] {
+    return this.db.prepare("SELECT * FROM faculty ORDER BY id DESC").all().map((row: any) => ({
       ...row,
-      compliance: parseJSON(row.compliance, {}),
-      weeklySchedule: parseJSON(row.weeklySchedule, []),
-      permissions: parseJSON(row.permissions, [])
+      compliance: this.parseJSON(row.compliance, {}),
+      weeklySchedule: this.parseJSON(row.weeklySchedule, []),
+      permissions: this.parseJSON(row.permissions, [])
     })) as FacultyMember[];
+  }
 
-    const clinicalFields = this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
+  getClinicalFields(): ClinicalField[] {
+    return this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
+  }
 
-    const sections = this.db.prepare("SELECT * FROM sections").all().map((row: any) => ({
+  getSections(): AcademicSection[] {
+    return this.db.prepare("SELECT * FROM sections").all().map((row: any) => ({
       ...row,
       // facultyId puede ser NULL tras un ON DELETE SET NULL; se normaliza a string vacío
       facultyId: row.facultyId ?? '',
-      schedule: parseJSON(row.schedule, [])
+      schedule: this.parseJSON(row.schedule, [])
     })) as AcademicSection[];
+  }
 
-    const sectionDailyRecords = this.db.prepare("SELECT * FROM section_daily_records ORDER BY date DESC").all().map((row: any) => ({
+  getSectionDailyRecords(): SectionDailyRecord[] {
+    return this.db.prepare("SELECT * FROM section_daily_records ORDER BY date DESC").all().map((row: any) => ({
       ...row,
       facultyPresent: Boolean(row.facultyPresent),
       signature: Boolean(row.signature),
-      absentStudentIds: parseJSON(row.absentStudentIds, [])
+      absentStudentIds: this.parseJSON(row.absentStudentIds, [])
     })) as SectionDailyRecord[];
+  }
 
-    const rotations = this.db.prepare("SELECT * FROM rotations").all() as Rotation[];
-    const activities = this.db.prepare("SELECT * FROM activities").all() as Activity[];
+  getRotations(): Rotation[] {
+    return this.db.prepare("SELECT * FROM rotations").all() as Rotation[];
+  }
 
-    return {
-      students,
-      modules,
-      minutes,
-      faculty,
-      clinicalFields,
-      sections,
-      sectionDailyRecords,
-      rotations,
-      activities
-    };
+  getActivities(): Activity[] {
+    return this.db.prepare("SELECT * FROM activities").all() as Activity[];
   }
 
   getUploadsDir() {

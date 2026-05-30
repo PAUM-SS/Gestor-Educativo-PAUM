@@ -509,7 +509,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/students', (_req, res) => {
     try {
-      res.json(db.getData().students);
+      res.json(db.getStudents());
     } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -669,8 +669,8 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
         return;
       }
 
-      const currentData = db.getData();
-      const existing = currentData?.students.find((s) => s.enrollmentId === matricula);
+      const studentsData = db.getStudents();
+      const existing = studentsData.find((s) => s.enrollmentId === matricula);
 
       const statusLabel = extractStudentStatusLabel(text);
       const progressPercent = extractProgressPercent(text);
@@ -685,7 +685,8 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       if (extractedName.length > 60) extractedName = extractedName.substring(0, 60);
 
       // Cruzar materias del Kardex con el plan de estudios (BD > fallback)
-      const planModules = currentData?.modules ?? MOCK_MODULES;
+      const modulesData = db.getModules();
+      const planModules = modulesData.length > 0 ? modulesData : MOCK_MODULES;
       const normalizedKardexText = normalizeKey(text);
       const matchedModuleIdSet = new Set<string>();
 
@@ -855,7 +856,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/curriculum', (_req, res) => {
     try {
-      res.json(db.getData().modules);
+      res.json(db.getModules());
     } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -917,7 +918,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/minutes', (_req, res) => {
     try {
-      res.json(db.getData().minutes);
+      res.json(db.getMinutes());
     } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -925,7 +926,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/faculty', (_req, res) => {
     try {
-      res.json(db.getData().faculty);
+      res.json(db.getFaculty());
     } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -940,7 +941,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
         return;
       }
 
-      const existingFaculty = db.getData().faculty.find((member) => member.id === newFaculty.id);
+      const existingFaculty = db.getFaculty().find((member) => member.id === newFaculty.id);
       if (existingFaculty) {
         res.status(409).json({ error: 'Faculty already exists' });
         return;
@@ -998,7 +999,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/clinical-fields', (_req, res) => {
     try {
-      res.json(db.getData().clinicalFields);
+      res.json(db.getClinicalFields());
     } catch (error) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -1026,7 +1027,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   });
 
   app.get('/api/sections', (_req, res) => {
-    try { res.json(db.getData().sections); }
+    try { res.json(db.getSections()); }
     catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
@@ -1042,7 +1043,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
   app.get('/api/section-records', (_req, res) => {
     try {
-      res.json(db.getData().sectionDailyRecords);
+      res.json(db.getSectionDailyRecords());
     } catch (error) {
       res.status(500).json({ error: 'DB not ready' });
     }
@@ -1078,12 +1079,12 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   });
 
   app.get('/api/rotations', (_req, res) => {
-    try { res.json(db.getData().rotations); }
+    try { res.json(db.getRotations()); }
     catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
   app.get('/api/activities', (_req, res) => {
-    try { res.json(db.getData().activities); }
+    try { res.json(db.getActivities()); }
     catch (e) { res.status(500).json({ error: 'DB not ready' }); }
   });
 
