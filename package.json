@@ -17,6 +17,7 @@
     "build:electron": "node scripts/build-electron.mjs",
     "build:desktop": "npm run generate:icons && npm run build && npm run build:electron",
     "desktop": "npm run build:desktop && electron-builder install-app-deps && electron .",
+    "dist:win": "npm run build:desktop && electron-builder --win portable",
     "preview": "vite preview",
     "clean": "rimraf dist build release",
     "lint": "tsc --noEmit"

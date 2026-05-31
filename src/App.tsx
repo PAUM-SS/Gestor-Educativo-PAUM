@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,8 +19,10 @@ import { Send } from 'lucide-react';
 import ReportModal from './components/ReportModal';
 import { curriculumService, calcCurriculumProgress } from './services/curriculumService';
 import { Module } from './types';
+import { ToastProvider } from './context/ToastContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
-export default function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
@@ -220,3 +222,12 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ErrorBoundary>
+  );
+}
