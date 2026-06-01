@@ -1,14 +1,9 @@
-﻿/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { motion } from 'motion/react';
-import { 
-  Calendar as CalendarIcon, 
-  Circle, 
-  XOctagon, 
-  Sun, 
+﻿import { motion } from 'motion/react';
+import {
+  Calendar as CalendarIcon,
+  Circle,
+  XOctagon,
+  Sun,
   Star,
   Info
 } from 'lucide-react';
@@ -46,7 +41,7 @@ export default function CalendarView() {
               <CalendarIcon size={18} className="text-gb-primary" />
               Próximos Eventos 2026
             </h3>
-            
+
             <div className="space-y-0">
               {MOCK_ACADEMIC_CALENDAR.map((event, i) => {
                 const category = categories.find(c => c.type === event.type);
@@ -61,11 +56,10 @@ export default function CalendarView() {
                       <h4 className="font-bold text-gb-text group-hover:text-gb-primary transition-colors">{event.title}</h4>
                     </div>
                     <div className="text-right">
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter ${
-                        event.type === 'susp' ? 'bg-red-50 text-red-600' :
-                        event.type === 'clase' ? 'bg-blue-50 text-blue-600' :
-                        'bg-slate-50 text-slate-500'
-                      }`}>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter ${event.type === 'susp' ? 'bg-red-50 text-red-600' :
+                          event.type === 'clase' ? 'bg-blue-50 text-blue-600' :
+                            'bg-slate-50 text-slate-500'
+                        }`}>
                         {category?.label}
                       </span>
                     </div>

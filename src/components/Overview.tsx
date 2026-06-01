@@ -1,15 +1,10 @@
-﻿/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { 
-  Users, 
-  BookOpen, 
-  Stethoscope, 
-  TrendingUp, 
+import {
+  Users,
+  BookOpen,
+  Stethoscope,
+  TrendingUp,
   ArrowUpRight,
   Clock,
   CircleCheckBig,
@@ -32,12 +27,14 @@ interface OverviewProps {
 export default function Overview({ onViewChange }: OverviewProps) {
   const [minutes, setMinutes] = useState<AcademicMinute[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
+
   useEffect(() => {
     minutesService.getMinutes().then(setMinutes);
     curriculumService.getModules().then(setModules);
   }, []);
+
   const progress = calcCurriculumProgress(modules);
-  const basico    = progress.byLevel.find(l => l.level === 'Básico')!;
+  const basico = progress.byLevel.find(l => l.level === 'Básico')!;
   const formativo = progress.byLevel.find(l => l.level === 'Formativo')!;
 
   const stats = [
@@ -47,7 +44,7 @@ export default function Overview({ onViewChange }: OverviewProps) {
     { label: 'Trámites Pendientes', value: minutes.reduce((acc, min) => acc + min.tasks.filter(t => t.status !== 'realizada').length, 0).toString() },
   ];
 
-  const deliverables = minutes.flatMap(minute => 
+  const deliverables = minutes.flatMap(minute =>
     minute.tasks.map(task => ({
       title: task.description,
       date: task.dueDate,
@@ -135,7 +132,7 @@ export default function Overview({ onViewChange }: OverviewProps) {
             <BookOpen size={18} className="text-gb-primary" />
             Cumplimiento Programático y de Egresación
           </h3>
-          
+
           <div className="space-y-6">
             <p className="text-[11px] text-slate-500 leading-tight mb-4">Métrica que pondera la entrega de contenidos temáticos (avance didáctico) frente al cumplimiento de créditos reglamentarios por nivel.</p>
 
@@ -205,18 +202,21 @@ export default function Overview({ onViewChange }: OverviewProps) {
             <FileText size={18} className="text-gb-accent" />
             Próximas Entregas de Información (Minutas)
           </h3>
-          
+
           <div className="space-y-3">
             {deliverables.map((item, idx) => (
-              <div key={idx} className={`flex flex-col p-4 border rounded-lg hover:border-gb-primary/30 transition-colors ${
-                item.status === 'vencida' ? 'bg-red-50 border-red-100' : 'border-slate-100 bg-white'
-              }`}>
+              <div key={idx} className={`flex flex-col p-4 border rounded-lg hover:border-gb-primary/30 transition-colors ${item.status === 'vencida'
+                ? 'bg-red-50 border-red-100'
+                : 'border-slate-100 bg-white'
+                }`}>
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-gb-secondary text-sm leading-tight max-w-[70%]">{item.title}</h4>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${
-                    item.status === 'urgente' || item.status === 'vencida' ? 'bg-red-500 text-white' : 
-                    item.status === 'pendiente' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${item.status === 'urgente' || item.status === 'vencida'
+                    ? 'bg-red-500 text-white'
+                    : item.status === 'pendiente'
+                      ? 'bg-amber-100 text-amber-600'
+                      : 'bg-slate-100 text-slate-500'
+                    }`}>
                     {item.date}
                   </span>
                 </div>
@@ -225,16 +225,16 @@ export default function Overview({ onViewChange }: OverviewProps) {
                   <div className="flex gap-3 items-center">
                     {item.reminder && (
                       <span className="flex items-center gap-1 text-[9px] font-bold text-blue-500 uppercase bg-blue-50 px-1.5 py-0.5 rounded">
-                        <Mail size={10}/> Recordatorio 48h (OK)
+                        <Mail size={10} /> Recordatorio 48h (OK)
                       </span>
                     )}
-                    {item.status === 'urgente' && <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 uppercase"><Clock size={12}/> Vencerá Pronto</span>}
-                    {item.status === 'vencida' && <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase"><CircleAlert size={12}/> Vencida</span>}
-                    <button 
+                    {item.status === 'urgente' && <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 uppercase"><Clock size={12} /> Vencerá Pronto</span>}
+                    {item.status === 'vencida' && <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase"><CircleAlert size={12} /> Vencida</span>}
+                    <button
                       onClick={() => onViewChange('minutes')}
                       className="flex items-center gap-1 text-[10px] font-bold text-gb-primary uppercase bg-gb-primary/5 px-2 py-1 rounded hover:bg-gb-primary/10 transition-colors"
                     >
-                      Ver Tarea <ArrowRight size={10}/>
+                      Ver Tarea <ArrowRight size={10} />
                     </button>
                   </div>
                 </div>
@@ -257,9 +257,10 @@ export default function Overview({ onViewChange }: OverviewProps) {
                       )}
                     </div>
                     {item.actual && item.estimated && (
-                      <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                        item.actual <= item.estimated ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                      }`}>
+                      <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${item.actual <= item.estimated
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-amber-50 text-amber-600'
+                        }`}>
                         Eficiencia: {Math.round((item.estimated / item.actual) * 100)}%
                       </div>
                     )}

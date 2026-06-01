@@ -1,7 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
 
 import { useEffect, useState } from 'react';
 import {
@@ -16,36 +12,41 @@ import {
 import { ClinicalField } from '../types';
 import { clinicalFieldService } from '../services/clinicalFieldService';
 import SiteRegistrationModal from './SiteRegistrationModal';
+import { useApiError } from '../hooks/useApiError';
+import { useToast } from '../context/ToastContext';
 
 export default function ClinicalFields() {
+  const { showToast } = useToast();
+  const { loading: isLoading, execute: executeLoad } = useApiError(true);
+  const { loading: isSaving, execute: executeAdd } = useApiError();
   const [fields, setFields] = useState<ClinicalField[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    const loadFields = async () => {
-      setIsLoading(true);
-      const loadedFields = await clinicalFieldService.getClinicalFields();
+  const loadFields = async () => {
+    const loadedFields = await executeLoad(
+      () => clinicalFieldService.getClinicalFields(),
+      'No se pudieron cargar las sedes clínicas. Verifica tu conexión.'
+    );
+
+    if (loadedFields) {
       setFields(loadedFields);
-      setIsLoading(false);
-    };
-
-    void loadFields();
+    }
+  }
+  useEffect(() => {
+    void loadFields
   }, []);
 
   const handleAddSite = async (newSite: ClinicalField) => {
-    setIsSaving(true);
+    const created = await executeAdd(
+      () => clinicalFieldService.addClinicalField(newSite),
+      'No se pudo registrar la sede clínica. Intenta de nuevo.'
+    );
 
-    const created = await clinicalFieldService.addClinicalField(newSite);
     if (created) {
-      setFields((previous) => [created, ...previous]);
+      setFields((prev) => [created, ...prev]);
       setIsModalOpen(false);
-    } else {
-      window.alert('No se pudo registrar la sede clínica.');
+      showToast('Sede clínica registrada correctamente.', 'success');
     }
-
-    setIsSaving(false);
   };
 
   return (
@@ -129,13 +130,12 @@ export default function ClinicalFields() {
                 </div>
                 <div className="text-center">
                   <span
-                    className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                      field.status === 'Activo'
-                        ? 'bg-gb-accent/10 text-gb-accent'
-                        : field.status === 'En Revisión'
-                          ? 'bg-amber-100 text-amber-600'
-                          : 'bg-red-50 text-red-500'
-                    }`}
+                    className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${field.status === 'Activo'
+                      ? 'bg-gb-accent/10 text-gb-accent'
+                      : field.status === 'En Revisión'
+                        ? 'bg-amber-100 text-amber-600'
+                        : 'bg-red-50 text-red-500'
+                      }`}
                   >
                     {field.status}
                   </span>
