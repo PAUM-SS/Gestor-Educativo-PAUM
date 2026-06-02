@@ -8,12 +8,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
+import { GoogleGenAI } from '@google/genai';
 import { PDFParse } from 'pdf-parse';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
-import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary } from './src/types';
+import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent } from './src/types';
 
 dotenv.config();
+
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
+const calendarUpload = multer({ storage: multer.memoryStorage() });
 
 export interface StartServerOptions {
   host?: string;
@@ -921,6 +925,182 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       res.json(db.getMinutes());
     } catch (e) {
       res.status(500).json({ error: 'DB not ready' });
+    }
+  });
+
+  app.get('/api/calendar/events', (req, res) => {
+    try {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const events = db.getCalendarEvents(from, to);
+      res.json(events);
+    } catch (e) {
+      console.error('[Calendar] Error fetching events:', e);
+      res.status(500).json({ error: 'No se pudieron obtener los eventos del calendario.' });
+    }
+  });
+
+  app.post('/api/calendar/upload', calendarUpload.single('calendar'), async (req, res) => {
+    if (!req.file) {
+      res.status(400).json({ error: 'No se recibió ningún archivo.' });
+      return;
+    }
+
+    const isPdf = req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
+    const isJson = req.file.mimetype === 'application/json' || req.file.originalname.toLowerCase().endsWith('.json');
+
+    if (!isPdf && !isJson) {
+      res.status(400).json({ error: 'Solo se aceptan archivos PDF o JSON.' });
+      return;
+    }
+
+    try {
+      let rawEvents: Omit<AcademicEvent, 'id'>[] = [];
+
+      // ── Rama JSON: parseo directo ─────────────────────────────────────────────
+      if (isJson) {
+        const parsed = JSON.parse(req.file.buffer.toString('utf-8'));
+        const events = Array.isArray(parsed) ? parsed : parsed.events;
+
+        if (!Array.isArray(events)) {
+          res.status(400).json({ error: 'El JSON debe ser un array de eventos o tener una propiedad "events".' });
+          return;
+        }
+
+        const validTypes = ['clase', 'ins', 'fin', 'susp', 'vac', 'gest', 'buap'];
+        rawEvents = events
+          .filter((e: any) => e.date && e.title && validTypes.includes(e.type))
+          .map((e: any) => ({
+            date: String(e.date),
+            title: String(e.title),
+            type: e.type as AcademicEvent['type'],
+            description: e.description ? String(e.description) : undefined,
+          }));
+
+        if (rawEvents.length === 0) {
+          res.status(400).json({ error: 'El JSON no contiene eventos válidos. Verifica el formato.' });
+          return;
+        }
+      }
+
+      // ── Rama PDF: extracción con Gemini ───────────────────────────────────────
+      if (isPdf) {
+        // 1. Extraer texto del PDF
+        const parser = new PDFParse({ data: req.file.buffer });
+        const parsedText = await parser.getText();
+        const pdfText = String(parsedText?.text || '').replace(/\u0000/g, '').trim();
+
+        if (!pdfText || pdfText.length < 50) {
+          res.status(422).json({ error: 'No se pudo extraer texto del PDF. Verifica que no sea una imagen escaneada.' });
+          return;
+        }
+
+        // 2. Llamar a Gemini para estructurar los eventos
+        const model = genAI.models;
+        const prompt = `
+          Eres un asistente que extrae eventos de calendarios escolares universitarios mexicanos.
+          Analiza el siguiente texto de un calendario escolar de la BUAP (Benemérita Universidad Autónoma de Puebla)
+          y extrae TODOS los eventos marcados.
+          
+          Los tipos de eventos válidos son:
+          - "clase"  → Inicio de cursos / Reinicio de actividades
+          - "ins"    → Inscripción / Reinscripción
+          - "fin"    → Fin de cursos / Exámenes finales
+          - "susp"   → Suspensión de labores (días festivos, conmemorativos)
+          - "vac"    → Periodo vacacional
+          - "gest"   → Actividades de gestión académica/administrativa
+          - "buap"   → Día de la Benemérita Universidad Autónoma de Puebla
+          
+          Tú determina el año del calendario. Todas las fechas deben estar en formato YYYY-MM-DD.
+          
+          Devuelve ÚNICAMENTE un JSON válido con este formato exacto (sin markdown, sin texto adicional):
+          [
+            { "date": "2026-01-05", "title": "Inicio de cursos Primavera 2026", "type": "clase" },
+            { "date": "2026-02-02", "title": "Suspensión de labores (Aniversario Constitución)", "type": "susp" }
+          ]
+          
+          Texto del calendario:
+          ${pdfText}
+      `.trim();
+
+        const response = await model.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: prompt,
+        });
+
+        const geminiText = response.text?.trim() ?? '';
+
+        // Limpiar posibles backticks de markdown que Gemini a veces agrega
+        const cleanJson = geminiText
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+
+        let parsed: any[];
+        try {
+          parsed = JSON.parse(cleanJson);
+        } catch {
+          console.error('[Calendar] Gemini no devolvió JSON válido:', geminiText);
+          res.status(422).json({
+            error: 'La IA no pudo estructurar los eventos del PDF. Intenta subir un JSON manualmente.',
+          });
+          return;
+        }
+
+        const validTypes = ['clase', 'ins', 'fin', 'susp', 'vac', 'gest', 'buap'];
+        rawEvents = parsed
+          .filter((e: any) => e.date && e.title && validTypes.includes(e.type))
+          .map((e: any) => ({
+            date: String(e.date),
+            title: String(e.title),
+            type: e.type as AcademicEvent['type'],
+            description: e.description ? String(e.description) : undefined,
+          }));
+
+        if (rawEvents.length === 0) {
+          res.status(422).json({ error: 'Gemini no encontró eventos reconocibles en el PDF.' });
+          return;
+        }
+      }
+
+      // ── Guardar en BD (reemplaza todos los eventos BUAP existentes) ───────────
+      const saved = db.upsertBuapEvents(rawEvents);
+      res.json({ created: saved.length, events: saved });
+
+    } catch (error) {
+      console.error('[Calendar] Error procesando archivo:', error);
+      res.status(500).json({ error: 'Error interno al procesar el archivo del calendario.' });
+    }
+  });
+
+  app.post('/api/calendar/minuta-event', (req, res) => {
+    const { task, minuteId } = req.body as {
+      task: { id: string; description: string; dueDate: string };
+      minuteId: string;
+    };
+
+    if (!task?.id || !task?.dueDate || !minuteId) {
+      res.status(400).json({ error: 'Faltan datos del evento (task.id, task.dueDate, minuteId).' });
+      return;
+    }
+
+    try {
+      const event = db.addMinutaEvent(task, minuteId);
+      res.json({ success: true, event });
+    } catch (e) {
+      console.error('[Calendar] Error adding minuta event:', e);
+      res.status(500).json({ error: 'No se pudo registrar el evento de minuta.' });
+    }
+  });
+
+  app.delete('/api/calendar/minuta-event/:taskId', (req, res) => {
+    const { taskId } = req.params;
+    try {
+      const removed = db.removeMinutaEvent(taskId);
+      res.json({ success: removed });
+    } catch (e) {
+      console.error('[Calendar] Error removing minuta event:', e);
+      res.status(500).json({ error: 'No se pudo eliminar el evento de minuta.' });
     }
   });
 
