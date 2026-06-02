@@ -9,13 +9,13 @@ export interface Student {
   enrollmentId: string;
   semester: number;
   status:
-    | 'activo'
-    | 'egresado'
-    | 'baja'
-    | 'en_riesgo'
-    | 'en_rotacion'
-    | 'servicio_social'
-    | 'práctica_profesional';
+  | 'activo'
+  | 'egresado'
+  | 'baja'
+  | 'en_riesgo'
+  | 'en_rotacion'
+  | 'servicio_social'
+  | 'práctica_profesional';
   gpa: number;
   attendance: number;
   email: string;
@@ -134,9 +134,12 @@ export interface ClinicalField {
 }
 
 export interface AcademicEvent {
-  date: string;
+  id: string;
+  date: string;         // YYYY-MM-DD
   title: string;
-  type: 'clase' | 'ins' | 'fin' | 'susp' | 'vac' | 'gest' | 'buap';
+  type: 'clase' | 'ins' | 'fin' | 'susp' | 'vac' | 'gest' | 'buap' | 'minuta';
+  sourceId?: string;    // id de ManualTask si type === 'minuta'
+  description?: string; // detalle adicional opcional
 }
 
 export interface AcademicMinute {

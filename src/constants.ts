@@ -329,21 +329,21 @@ export const MOCK_MODULES: Module[] = [
 export const MOCK_CLINICAL_FIELDS: ClinicalField[] = [];
 
 export const MOCK_ACADEMIC_CALENDAR: AcademicEvent[] = [
-  { date: '2026-01-05', title: 'Inicio de cursos Primavera 2026', type: 'clase' },
-  { date: '2026-01-05', title: 'Periodo de Inscripción', type: 'ins' },
-  { date: '2026-02-02', title: 'Suspensión de labores (Aniv. Const.)', type: 'susp' },
-  { date: '2026-03-16', title: 'Suspensión de labores (Natalicio Juárez)', type: 'susp' },
-  { date: '2026-03-30', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
-  { date: '2026-03-31', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
-  { date: '2026-04-01', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
-  { date: '2026-04-02', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
-  { date: '2026-04-03', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
-  { date: '2026-05-01', title: 'Día del Trabajo', type: 'susp' },
-  { date: '2026-05-05', title: 'Batalla de Puebla', type: 'susp' },
-  { date: '2026-05-15', title: 'Día del Maestro', type: 'susp' },
-  { date: '2026-06-01', title: 'Fin de cursos Primavera', type: 'fin' },
-  { date: '2026-08-10', title: 'Inicio de cursos Otoño 2026', type: 'clase' },
-  { date: '2026-11-23', title: 'Día de la Benemérita BUAP', type: 'buap' }
+  { id: 'mock-cal-01', date: '2026-01-05', title: 'Inicio de cursos Primavera 2026', type: 'clase' },
+  { id: 'mock-cal-02', date: '2026-01-05', title: 'Periodo de Inscripción', type: 'ins' },
+  { id: 'mock-cal-03', date: '2026-02-02', title: 'Suspensión de labores (Aniv. Const.)', type: 'susp' },
+  { id: 'mock-cal-04', date: '2026-03-16', title: 'Suspensión de labores (Natalicio Juárez)', type: 'susp' },
+  { id: 'mock-cal-05', date: '2026-03-30', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
+  { id: 'mock-cal-06', date: '2026-03-31', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
+  { id: 'mock-cal-07', date: '2026-04-01', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
+  { id: 'mock-cal-08', date: '2026-04-02', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
+  { id: 'mock-cal-09', date: '2026-04-03', title: 'Periodo Vacacional Semana Santa', type: 'vac' },
+  { id: 'mock-cal-10', date: '2026-05-01', title: 'Día del Trabajo', type: 'susp' },
+  { id: 'mock-cal-11', date: '2026-05-05', title: 'Batalla de Puebla', type: 'susp' },
+  { id: 'mock-cal-12', date: '2026-05-15', title: 'Día del Maestro', type: 'susp' },
+  { id: 'mock-cal-13', date: '2026-06-01', title: 'Fin de cursos Primavera', type: 'fin' },
+  { id: 'mock-cal-14', date: '2026-08-10', title: 'Inicio de cursos Otoño 2026', type: 'clase' },
+  { id: 'mock-cal-15', date: '2026-11-23', title: 'Día de la Benemérita BUAP', type: 'buap' },
 ];
 
 export const MOCK_MINUTES: AcademicMinute[] = [

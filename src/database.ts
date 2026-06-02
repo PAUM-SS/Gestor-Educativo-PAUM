@@ -4,7 +4,20 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-import { Student, Module, AcademicMinute, FacultyMember, AcademicSection, ClassSchedule, ManualTask, Rotation, Activity, ClinicalField, SectionDailyRecord } from './types';
+import {
+  Student,
+  Module,
+  AcademicMinute,
+  FacultyMember,
+  AcademicSection,
+  ClassSchedule,
+  ManualTask,
+  Rotation,
+  Activity,
+  ClinicalField,
+  SectionDailyRecord,
+  AcademicEvent
+} from './types';
 
 import {
   MOCK_STUDENTS,
@@ -14,7 +27,8 @@ import {
   MOCK_CLINICAL_FIELDS,
   MOCK_SECTIONS,
   MOCK_ROTATIONS,
-  MOCK_ACTIVITIES
+  MOCK_ACTIVITIES,
+  MOCK_ACADEMIC_CALENDAR
 } from './constants';
 
 export interface DatabaseSchema {
@@ -27,6 +41,7 @@ export interface DatabaseSchema {
   sectionDailyRecords: SectionDailyRecord[];
   rotations: Rotation[];
   activities: Activity[];
+  calendarEvents: AcademicEvent[]
 }
 
 const NORMALIZED_DAYS: Record<string, ClassSchedule['day']> = {
@@ -278,6 +293,15 @@ export class SqliteDatabase {
         status TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id          TEXT PRIMARY KEY,
+        date        TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        type        TEXT NOT NULL,
+        sourceId    TEXT,
+        description TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS _meta (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -334,7 +358,8 @@ export class SqliteDatabase {
           sections: MOCK_SECTIONS.map(normalizeSection),
           sectionDailyRecords: [],
           rotations: MOCK_ROTATIONS,
-          activities: MOCK_ACTIVITIES
+          activities: MOCK_ACTIVITIES,
+          calendarEvents: MOCK_ACADEMIC_CALENDAR
         };
       }
 
@@ -395,12 +420,192 @@ export class SqliteDatabase {
         VALUES (?, ?, ?, ?, ?, ?)
         `);
 
+        const insertCalEvent = this.db.prepare(`
+        INSERT OR IGNORE INTO calendar_events (id, date, title, type, sourceId, description)
+        VALUES (?, ?, ?, ?, ?, ?)
+        `);
+
+        // Execute inserting initial data
+        if (Array.isArray(data.students)) {
+          for (const s of data.students) {
+            insertStudent.run(
+              s.id,
+              s.name,
+              s.enrollmentId,
+              s.semester,
+              s.status,
+              s.gpa,
+              s.attendance,
+              s.email,
+              s.cohort,
+              s.tutor,
+              s.alert ? 1 : 0,
+              s.kardex ? JSON.stringify(s.kardex) : null
+            );
+          }
+        }
+
+        if (Array.isArray(data.modules)) {
+          for (const m of data.modules) {
+            insertModule.run(
+              m.id,
+              m.title,
+              m.code,
+              m.credits,
+              m.description,
+              m.instructor,
+              m.competencies ? JSON.stringify(m.competencies) : '[]',
+              m.status,
+              m.semester !== undefined ? String(m.semester) : null,
+              m.level,
+              m.syllabusUrl ?? null,
+              m.syllabusFileName ?? null,
+              m.didacticPlanningUrl ?? null,
+              m.didacticPlanningFileName ?? null,
+              m.planning ? JSON.stringify(m.planning) : null
+            );
+          }
+        }
+
+        if (Array.isArray(data.minutes)) {
+          for (const m of data.minutes) {
+            insertMinute.run(
+              m.id,
+              m.date,
+              m.subject,
+              m.tasks ? JSON.stringify(m.tasks) : '[]',
+              m.fullData ? JSON.stringify(m.fullData) : null
+            );
+          }
+        }
+
+        if (Array.isArray(data.faculty)) {
+          for (const f of data.faculty) {
+            insertFaculty.run(
+              f.id,
+              f.name,
+              f.category,
+              f.level,
+              f.dedication,
+              f.seniority ?? 0,
+              f.hireDate ?? null,
+              f.compliance ? JSON.stringify(f.compliance) : '{}',
+              f.adscription ?? null,
+              f.email ?? null,
+              f.phone ?? null,
+              f.photo ?? null,
+              f.weeklySchedule ? JSON.stringify(f.weeklySchedule) : '[]',
+              f.permissions ? JSON.stringify(f.permissions) : '[]'
+            );
+          }
+        }
+
+        if (Array.isArray(data.clinicalFields)) {
+          for (const cf of data.clinicalFields) {
+            insertCF.run(
+              cf.id,
+              cf.name,
+              cf.type,
+              cf.level ?? null,
+              cf.slots ?? 0,
+              cf.status,
+              cf.pertinence ?? null,
+              cf.lastInspection ?? null,
+              cf.agreementExpiry ?? null
+            );
+          }
+        }
+
+        if (Array.isArray(data.sections)) {
+          for (const sec of data.sections) {
+            insertSection.run(
+              sec.id,
+              sec.moduleId,
+              sec.moduleName ?? null,
+              sec.facultyId || null,
+              sec.groupCode,
+              sec.semester ?? null,
+              sec.room ?? null,
+              sec.roomType ?? null,
+              sec.capacity ?? 0,
+              sec.enrolled ?? 0,
+              sec.schedule ? JSON.stringify(sec.schedule) : '[]'
+            );
+          }
+        }
+
+        if (Array.isArray(data.sectionDailyRecords)) {
+          for (const sdr of data.sectionDailyRecords) {
+            insertSDR.run(
+              sdr.id,
+              sdr.sectionId,
+              sdr.date,
+              sdr.facultyPresent ? 1 : 0,
+              sdr.absentStudentIds ? JSON.stringify(sdr.absentStudentIds) : '[]',
+              sdr.justification ?? null,
+              sdr.justificationType ?? null,
+              sdr.topic ?? null,
+              sdr.signature ? 1 : 0,
+              sdr.updatedAt ?? new Date().toISOString()
+            );
+          }
+        }
+
+        if (Array.isArray(data.rotations)) {
+          for (const r of data.rotations) {
+            insertRot.run(
+              r.id,
+              r.studentId,
+              r.studentName ?? null,
+              r.clinicalFieldId || null,
+              r.facility ?? null,
+              r.department ?? null,
+              r.startDate ?? null,
+              r.endDate ?? null,
+              r.supervisor ?? null,
+              r.status ?? 'programada'
+            );
+          }
+        }
+
+        if (Array.isArray(data.activities)) {
+          for (const act of data.activities) {
+            insertAct.run(
+              act.id,
+              act.type,
+              act.title,
+              act.timestamp,
+              act.relatedId ?? null,
+              act.status ?? null
+            );
+          }
+        }
+
+        if (Array.isArray(data.calendarEvents)) {
+          for (const e of data.calendarEvents) {
+            insertCalEvent.run(
+              e.id,
+              e.date,
+              e.title,
+              e.type,
+              e.sourceId ?? null,
+              e.description ?? null
+            );
+          }
+        }
+
         this.db
           .prepare("INSERT OR IGNORE INTO _meta (key, value) VALUES ('seeded', 'true')")
           .run();
       });
 
-      tx(initialData);
+      // Temporarily disable foreign keys to allow migration/seeding of datasets with potential orphaned references
+      this.db.pragma('foreign_keys = OFF');
+      try {
+        tx(initialData);
+      } finally {
+        this.db.pragma('foreign_keys = ON');
+      }
 
       if (existsSync(oldJsonPath)) {
         await fs.rename(oldJsonPath, oldJsonPath + '.bak')
@@ -484,6 +689,18 @@ export class SqliteDatabase {
 
   getUploadsDir() {
     return path.join(this.dataDir, 'uploads');
+  }
+
+  // Obtener todos los eventos, con filtro opcional por rango de fechas
+  getCalendarEvents(from?: string, to?: string): AcademicEvent[] {
+    if (from && to) {
+      return this.db
+        .prepare("SELECT * FROM calendar_events WHERE date >= ? AND date <= ? ORDER BY date ASC")
+        .all(from, to) as AcademicEvent[];
+    }
+    return this.db
+      .prepare("SELECT * FROM calendar_events ORDER BY date ASC")
+      .all() as AcademicEvent[];
   }
 
   // --- Helpers Específicos ---
@@ -724,6 +941,73 @@ export class SqliteDatabase {
       this.db.prepare(`INSERT INTO section_daily_records (id, sectionId, date, facultyPresent, absentStudentIds, justification, justificationType, topic, signature, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(nextRecord.id, nextRecord.sectionId, nextRecord.date, nextRecord.facultyPresent ? 1 : 0, JSON.stringify(nextRecord.absentStudentIds), nextRecord.justification, nextRecord.justificationType, nextRecord.topic, nextRecord.signature ? 1 : 0, nextRecord.updatedAt);
     }
     return nextRecord;
+  }
+
+  // Reemplazar todos los eventos BUAP (type != 'minuta') con los nuevos del upload
+  upsertBuapEvents(events: Omit<AcademicEvent, 'id'>[]): AcademicEvent[] {
+    const tx = this.db.transaction(() => {
+      // Borrar todos los eventos BUAP existentes (no tocar minutas)
+      this.db.prepare("DELETE FROM calendar_events WHERE type != 'minuta'").run();
+
+      const insert = this.db.prepare(`
+      INSERT INTO calendar_events (id, date, title, type, sourceId, description)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+      const inserted: AcademicEvent[] = [];
+      for (const e of events) {
+        const id = `buap-${e.date}-${e.type}-${Math.random().toString(36).slice(2, 7)}`;
+        insert.run(id, e.date, e.title, e.type, e.sourceId ?? null, e.description ?? null);
+        inserted.push({ id, ...e });
+      }
+      return inserted;
+    });
+    return tx();
+  }
+
+  // Agregar un evento de tipo 'minuta' cuando se crea una tarea con dueDate
+  addMinutaEvent(task: { id: string; description: string; dueDate: string }, minuteId: string): AcademicEvent {
+    const id = `minuta-${task.id}`;
+    // Upsert: si ya existe por sourceId lo actualiza, si no lo crea
+    const existing = this.db
+      .prepare("SELECT id FROM calendar_events WHERE sourceId = ?")
+      .get(task.id) as { id: string } | undefined;
+
+    if (existing) {
+      this.db.prepare(`
+      UPDATE calendar_events SET date=?, title=?, description=? WHERE id=?
+    `).run(task.dueDate, `Tarea: ${task.description}`, `Minuta ${minuteId}`, existing.id);
+      return {
+        id: existing.id,
+        date: task.dueDate,
+        title: `Tarea: ${task.description}`,
+        type: 'minuta',
+        sourceId: task.id,
+        description: `Minuta ${minuteId}`,
+      };
+    }
+
+    this.db.prepare(`
+    INSERT INTO calendar_events (id, date, title, type, sourceId, description)
+    VALUES (?, ?, ?, 'minuta', ?, ?)
+  `).run(id, task.dueDate, `Tarea: ${task.description}`, task.id, `Minuta ${minuteId}`);
+
+    return {
+      id,
+      date: task.dueDate,
+      title: `Tarea: ${task.description}`,
+      type: 'minuta',
+      sourceId: task.id,
+      description: `Minuta ${minuteId}`,
+    };
+  }
+
+  // Eliminar el evento de minuta cuando la tarea se marca como realizada
+  removeMinutaEvent(taskId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM calendar_events WHERE sourceId = ?")
+      .run(taskId);
+    return result.changes > 0;
   }
 }
 
