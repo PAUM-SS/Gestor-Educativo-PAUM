@@ -6,6 +6,17 @@ import os from 'node:os';
 
 import { Student, Module, AcademicMinute, FacultyMember, AcademicSection, ClassSchedule, ManualTask, Rotation, Activity, ClinicalField, SectionDailyRecord } from './types';
 
+import {
+  MOCK_STUDENTS,
+  MOCK_MODULES,
+  MOCK_MINUTES,
+  MOCK_FACULTY,
+  MOCK_CLINICAL_FIELDS,
+  MOCK_SECTIONS,
+  MOCK_ROTATIONS,
+  MOCK_ACTIVITIES
+} from './constants';
+
 export interface DatabaseSchema {
   students: Student[];
   modules: Module[];
@@ -311,6 +322,20 @@ export class SqliteDatabase {
         } catch (error) {
           console.error('[Base de Datos] Error al leer database.json:', error);
         }
+      }
+
+      if (!initialData) {
+        initialData = {
+          students: MOCK_STUDENTS,
+          modules: MOCK_MODULES,
+          minutes: MOCK_MINUTES,
+          faculty: MOCK_FACULTY.map(normalizeFacultyMember),
+          clinicalFields: MOCK_CLINICAL_FIELDS,
+          sections: MOCK_SECTIONS.map(normalizeSection),
+          sectionDailyRecords: [],
+          rotations: MOCK_ROTATIONS,
+          activities: MOCK_ACTIVITIES
+        };
       }
 
       const tx = this.db.transaction((data: DatabaseSchema) => {

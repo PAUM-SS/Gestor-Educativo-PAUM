@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Student, Module, Rotation, Activity, FacultyMember, ClinicalField, AcademicEvent, AcademicMinute, ManualTask, AcademicSection, DidacticPlanning, PlanningUnit } from './types';
 
 export const MOCK_PLANNING_ANATOMY: DidacticPlanning = {
@@ -48,7 +43,7 @@ export const MOCK_PLANNING_ANATOMY: DidacticPlanning = {
       sessions: 18,
       completedSessions: 8,
       sessionLog: [
-        '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', 
+        '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09',
         '2026-04-13', '2026-04-14', '2026-04-15', '2026-04-16'
       ],
       status: 'en_progreso'
@@ -408,10 +403,10 @@ export const MOCK_MINUTES: AcademicMinute[] = [
     date: '2026-04-06',
     subject: 'Evaluación del Cuerpo Docente PAUM',
     tasks: [
-      { 
-        id: 't3', 
-        description: 'Revisar folios de cédula del Dr. Casanova', 
-        dueDate: '2026-04-15', 
+      {
+        id: 't3',
+        description: 'Revisar folios de cédula del Dr. Casanova',
+        dueDate: '2026-04-15',
         status: 'realizada',
         estimatedHours: 2,
         actualHours: 1.5,
@@ -424,18 +419,18 @@ export const MOCK_MINUTES: AcademicMinute[] = [
     date: '2026-04-18',
     subject: 'Seguimiento de Práctica Profesional y Servicio Social',
     tasks: [
-      { 
-        id: 't4', 
-        description: 'Validación de bitácoras de Práctica Profesional (Cruz Roja)', 
-        dueDate: '2026-04-22', 
+      {
+        id: 't4',
+        description: 'Validación de bitácoras de Práctica Profesional (Cruz Roja)',
+        dueDate: '2026-04-22',
         status: 'pendiente',
         estimatedHours: 6,
         reminderSent: false
       },
-      { 
-        id: 't5', 
-        description: 'Integración de expedientes para inicio de Servicio Social', 
-        dueDate: '2026-05-05', 
+      {
+        id: 't5',
+        description: 'Integración de expedientes para inicio de Servicio Social',
+        dueDate: '2026-05-05',
         status: 'pendiente',
         estimatedHours: 10,
         reminderSent: false
