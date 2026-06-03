@@ -749,7 +749,16 @@ export class SqliteDatabase {
           unit.status = 'pendiente';
         }
 
-        this.db.prepare("UPDATE modules SET planning=? WHERE id=?").run(JSON.stringify(module.planning), moduleId);
+        // Después de actualizar la unidad, revisar si todas están completadas
+        const allUnitsCompleted = module.planning.units.every(u => u.status === 'completado');
+        const anyInProgress = module.planning.units.some(u => u.status === 'en_progreso' || u.completedSessions > 0);
+
+        const newModuleStatus = allUnitsCompleted ? 'completado' : anyInProgress ? 'en_curso' : 'pendiente';
+
+        // Actualizar el status del módulo junto con la planeación
+        this.db.prepare("UPDATE modules SET planning=?, status=? WHERE id=?")
+          .run(JSON.stringify(module.planning), newModuleStatus, moduleId);
+
         return unit;
       }
     }

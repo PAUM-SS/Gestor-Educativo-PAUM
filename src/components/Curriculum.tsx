@@ -63,7 +63,7 @@ function buildModuleFilesState(modules: Module[]): Record<string, ModuleFiles> {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function Curriculum() {
+export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => void }) {
   const { showToast } = useToast();
   const { loading: isLoadingModules, execute: executeLoad } = useApiError(true);
   const { loading: isUploading, execute: executeUpload } = useApiError();
@@ -430,11 +430,12 @@ export default function Curriculum() {
       <AnimatePresence>
         {selectedPlanningModule && (
           <PlanningModal
-            module={selectedPlanningModule}
-            onClose={() => setSelectedPlanningModule(null)}
-            onUpdate={updatedModule => {
+            module={selectedPlanningModule} 
+            onClose={() => setSelectedPlanningModule(null)} 
+            onUpdate={(updatedModule) => {
               setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
               setSelectedPlanningModule(updatedModule);
+              onModuleUpdate?.();
             }}
           />
         )}

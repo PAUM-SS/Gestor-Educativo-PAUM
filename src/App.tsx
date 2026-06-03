@@ -28,8 +28,12 @@ function AppContent() {
 
   const [modules, setModules] = useState<Module[]>([]);
 
-  useEffect(() => {
+  const refreshModules = () => {
     curriculumService.getModules().then(setModules);
+  };
+
+  useEffect(() => {
+    refreshModules();
   }, []);
 
   const progress  = calcCurriculumProgress(modules);
@@ -40,7 +44,7 @@ function AppContent() {
     switch(currentView) {
       case 'dashboard': return <Overview onViewChange={setCurrentView} />;
       case 'students': return <Students />;
-      case 'curriculum': return <Curriculum />;
+      case 'curriculum': return <Curriculum onModuleUpdate={refreshModules} />;
       case 'faculty': return <Faculty />;
       case 'clinical-fields': return <ClinicalFields />;
       //case 'scheduling': return <SchedulingView />;
