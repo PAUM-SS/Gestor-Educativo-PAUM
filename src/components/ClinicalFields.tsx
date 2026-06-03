@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import {
   Hospital,
   MapPin,
@@ -8,17 +8,26 @@ import {
   FileBadge,
   Plus,
   Loader2,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
+
 import { ClinicalField } from '../types';
 import { clinicalFieldService } from '../services/clinicalFieldService';
-import SiteRegistrationModal from './SiteRegistrationModal';
+import ClinicalFieldModal from './ClinicalFieldModal';
+import { ConfirmModal } from './ConfirmModal';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
 
 export default function ClinicalFields() {
   const { showToast } = useToast();
   const { loading: isLoading, execute: executeLoad } = useApiError(true);
-  const { loading: isSaving, execute: executeAdd } = useApiError();
+  const { loading: isAdding, execute: executeAdd } = useApiError();
+  const { loading: isUpdating, execute: executeUpdate } = useApiError();
+  const { loading: isDeleting, execute: executeDelete } = useApiError();
+  const [selectedClinicalField, setSelectedClinicalField] = useState<ClinicalField | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+
   const [fields, setFields] = useState<ClinicalField[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -33,7 +42,7 @@ export default function ClinicalFields() {
     }
   }
   useEffect(() => {
-    void loadFields
+    void loadFields();
   }, []);
 
   const handleAddSite = async (newSite: ClinicalField) => {
@@ -49,6 +58,47 @@ export default function ClinicalFields() {
     }
   };
 
+  const handleUpdateField = async (updatedField: ClinicalField) => {
+    const updated = await executeUpdate(
+      () => clinicalFieldService.updateClinicalField(updatedField.id, updatedField),
+      'No se pudo actualizar el registro de sedes clínicas. Intenta de nuevo.'
+    );
+
+    if (updated) {
+      setFields(prev => prev.map(f => f.id === updated.id ? updated : f));
+      setSelectedClinicalField(null);
+      setIsModalOpen(false);
+      showToast('Sede clínica actualizada correctamente.', 'success');
+    }
+  };
+
+  const handleEditClick = (field: ClinicalField) => {
+    setSelectedClinicalField(field);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = () => {
+    if (!selectedClinicalField) return;
+    setConfirmDelete({ id: selectedClinicalField.id, name: selectedClinicalField.name });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDelete) return;
+    const { id, name } = confirmDelete;
+    setConfirmDelete(null);
+
+    const deleted = await executeDelete(
+      () => clinicalFieldService.deleteClinicalField(id),
+      `No se pudo dar de baja a ${name}. Intenta de nuevo.`
+    );
+
+    if (deleted) {
+      setFields(prev => prev.filter(f => f.id !== id));
+      setSelectedClinicalField(null);
+      showToast(`${name} dado de baja del sistema.`, 'success');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-end">
@@ -60,7 +110,7 @@ export default function ClinicalFields() {
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 bg-gb-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-gb-primary/90 transition-all active:scale-95"
         >
-          <Plus size={18} />
+          <Plus size={20} />
           Registrar Sede
         </button>
       </header>
@@ -83,13 +133,14 @@ export default function ClinicalFields() {
       </div>
 
       <div className="geometric-card overflow-hidden">
-        <div className="table-header-gb grid grid-cols-[1.5fr_100px_80px_1fr_120px_120px]">
+        <div className="table-header-gb grid grid-cols-[1.5fr_100px_80px_1fr_120px_120px_80px]">
           <div>Sede / Hospital</div>
           <div className="text-center">Tipo</div>
           <div className="text-center">Nivel</div>
           <div>Pertinencia Académica</div>
           <div className="text-center">Capacidad</div>
           <div className="text-center">Estatus</div>
+          <div className="text-center">Acciones</div>
         </div>
         <div className="divide-y divide-slate-100">
           {isLoading ? (
@@ -105,7 +156,7 @@ export default function ClinicalFields() {
             </div>
           ) : (
             fields.map((field) => (
-              <div key={field.id} className="table-row-gb grid grid-cols-[1.5fr_100px_80px_1fr_120px_120px] items-center py-4">
+              <div key={field.id} className="table-row-gb grid grid-cols-[1.5fr_100px_80px_1fr_120px_120px_80px] items-center py-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-slate-50 flex items-center justify-center rounded">
                     <Hospital className="text-gb-primary" size={20} />
@@ -141,18 +192,49 @@ export default function ClinicalFields() {
                   </span>
                   <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-tighter">Vence: {field.agreementExpiry}</p>
                 </div>
+                <div className="flex justify-center gap-2">
+                  <button onClick={() => handleEditClick(field)} className="text-slate-400 hover:text-gb-primary transition-colors">
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={() => { setSelectedClinicalField(field); setTimeout(handleDeleteClick, 0); }} className="text-slate-400 hover:text-red-500 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
 
-      <SiteRegistrationModal
+      <ClinicalFieldModal
         isOpen={isModalOpen}
-        isSaving={isSaving}
-        onClose={() => !isSaving && setIsModalOpen(false)}
-        onSave={handleAddSite}
+        isSaving={isAdding || isUpdating}
+        initialData={selectedClinicalField}
+        onClose={() => {
+          if (!isAdding && !isUpdating) {
+            setIsModalOpen(false);
+            setSelectedClinicalField(null);
+          }
+        }}
+        onSave={selectedClinicalField ? handleUpdateField : handleAddSite}
       />
+
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmModal
+            title="¿Dar de baja sede?"
+            message={
+              <>
+                Estás a punto de eliminar <strong>{confirmDelete.name}</strong> del sistema. Esta acción no se puede deshacer.
+              </>
+            }
+            confirmText="Eliminar Sede"
+            isProcessing={isDeleting}
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

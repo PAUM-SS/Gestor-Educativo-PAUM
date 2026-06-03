@@ -1206,6 +1206,26 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
     }
   });
 
+  app.put('/api/clinical-fields/:id', async (req, res) => {
+    try {
+      const updated = await db.updateClinicalField(req.params.id, req.body);
+      if (updated) res.json(updated);
+      else res.status(404).json({ error: 'Clinical field not found' });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to update clinical field' });
+    }
+  });
+
+  app.delete('/api/clinical-fields/:id', async (req, res) => {
+    try {
+      const success = await db.deleteClinicalField(req.params.id);
+      if (success) res.json({ success: true });
+      else res.status(404).json({ error: 'Clinical field not found' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete clinical field' });
+    }
+  });
+
   app.get('/api/sections', (_req, res) => {
     try { res.json(db.getSections()); }
     catch (e) { res.status(500).json({ error: 'DB not ready' }); }
