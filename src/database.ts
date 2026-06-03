@@ -785,6 +785,32 @@ export class SqliteDatabase {
     return { ...updatedRow, semester: sem, competencies: JSON.parse(updatedRow.competencies || "[]"), planning: JSON.parse(updatedRow.planning || "null") } as Module;
   }
 
+  async updateModule(moduleId: string, updates: Partial<Module>) {
+    const row = this.db.prepare("SELECT * FROM modules WHERE id = ?").get(moduleId) as any;
+    if (!row) return null;
+
+    const sem = isNaN(Number(row.semester)) ? row.semester : Number(row.semester);
+    const current: Module = {
+      ...row,
+      semester: sem,
+      competencies: JSON.parse(row.competencies || "[]"),
+      planning: JSON.parse(row.planning || "null")
+    };
+
+    const updated = { ...current, ...updates };
+
+    this.db.prepare(`
+      UPDATE modules SET title=?, code=?, credits=?, description=?, instructor=?, 
+      competencies=?, status=?, semester=?, level=? WHERE id=?
+    `).run(
+      updated.title, updated.code, updated.credits, updated.description, updated.instructor,
+      JSON.stringify(updated.competencies), updated.status, String(updated.semester),
+      updated.level, moduleId
+    );
+
+    return updated;
+  }
+
   async updateFaculty(id: string, updates: Partial<FacultyMember>) {
     const row = this.db.prepare("SELECT * FROM faculty WHERE id = ?").get(id) as any;
     if (!row) return null;
