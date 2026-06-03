@@ -866,6 +866,16 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
     }
   });
 
+  app.put('/api/curriculum/:moduleId', async (req, res) => {
+    try {
+      const updated = await db.updateModule(req.params.moduleId, req.body);
+      if (updated) res.json(updated);
+      else res.status(404).json({ error: 'Module not found' });
+    } catch(e) {
+      res.status(500).json({ error: 'Failed to update module' });
+    }
+  });
+
   app.put('/api/curriculum/:moduleId/units/:unitId', async (req, res) => {
     try {
       const { completedSessions } = req.body;
