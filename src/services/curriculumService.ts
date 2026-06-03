@@ -33,6 +33,21 @@ export const curriculumService = {
 
     if (!response.ok) throw new Error('Error uploading module document');
     return await response.json();
+  },
+
+  updateModule: async (moduleId: string, updates: Partial<Module>): Promise<Module | null> => {
+    try {
+      const response = await fetch(`/api/curriculum/${moduleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!response.ok) throw new Error('Error updating module');
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to update module:', error);
+      return null;
+    }
   }
 };
 
