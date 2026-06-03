@@ -1322,6 +1322,67 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
     res.json({ response: 'Procesado por Gemini (simulado)' });
   });
 
+  // ── Reportes: recibir PDF y enviarlo por correo ──────────────────
+  const pdfUpload = multer({ storage: multer.memoryStorage() });
+
+  app.post('/api/reports/send', pdfUpload.single('pdf'), async (req, res) => {
+    try {
+      const pdfFile = (req as RequestWithFile).file;
+      const { reportType = 'general', notes = '' } = req.body as { reportType?: string; notes?: string };
+
+      if (!pdfFile) {
+        res.status(400).json({ error: 'No se recibió ningún archivo PDF.' });
+        return;
+      }
+
+      // ── Nodemailer ──────────────────────────────────────────────
+      const nodemailer = await import('nodemailer');
+
+      const from = process.env.MAIL_FROM || '';
+      const to   = process.env.MAIL_TO   || 'academiapaum@buap.mx';
+      const user = process.env.MAIL_USER || from;
+      const pass = process.env.MAIL_PASS || '';
+
+      if (!from || !pass) {
+        console.warn('[Reports] MAIL_FROM / MAIL_PASS no configurados en .env. El correo no se enviará.');
+        // En desarrollo, aceptamos y respondemos OK de todas formas
+        res.json({ success: true, simulated: true });
+        return;
+      }
+
+      const transporter = nodemailer.default.createTransport({
+        service: 'gmail',
+        auth: { user, pass },
+      });
+
+      const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+      const subject = `[PAUM] Reporte oficial – ${reportType.toUpperCase()} – ${today}`;
+
+      await transporter.sendMail({
+        from: `"PAUM Gestor Educativo" <${from}>`,
+        to,
+        subject,
+        html: `
+          <p>Se adjunta el reporte oficial de tipo <strong>${reportType}</strong> generado el ${today}.</p>
+          ${notes ? `<p><strong>Observaciones del coordinador:</strong><br/>${notes.replace(/\n/g, '<br/>')}</p>` : ''}
+          <hr/>
+          <p style="font-size:11px;color:#64748b;">Enviado automáticamente por el sistema PAUM Gestor Educativo – Facultad de Medicina BUAP.</p>
+        `,
+        attachments: [{
+          filename: pdfFile.originalname || `PAUM-${reportType}-${Date.now()}.pdf`,
+          content: pdfFile.buffer,
+          contentType: 'application/pdf',
+        }],
+      });
+
+      console.log(`[Reports] Reporte "${reportType}" enviado a ${to}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Reports] Error al enviar el reporte:', error);
+      res.status(500).json({ error: 'No se pudo enviar el reporte.' });
+    }
+  });
+
   if (staticDir) {
     const resolvedStaticDir = path.resolve(staticDir);
     const indexFile = path.join(resolvedStaticDir, 'index.html');

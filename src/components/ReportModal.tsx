@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  X, 
-  Send, 
-  CircleCheckBig, 
-  FileText, 
+import {
+  X,
+  Send,
+  CircleCheckBig,
+  FileText,
   Loader2,
   Users,
   Building2,
@@ -21,6 +21,9 @@ import {
 import PDFPreview from './PDFPreview';
 import PAUMShield from './PAUMShield';
 import { reportService } from '../services/reportService';
+import { type ReportType } from './ReportPDFDocument';
+import { useApiError } from '../hooks/useApiError';
+import { useToast } from '../context/ToastContext';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -28,9 +31,13 @@ interface ReportModalProps {
 }
 
 export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
+  const { showToast } = useToast();
+  const { loading: isSending, execute: executeSend } = useApiError();
+  const { loading: isPrinting, execute: executePrint } = useApiError();
+
   const [reportType, setReportType] = useState('academico');
   const [coordinatorNotes, setCoordinatorNotes] = useState('');
-  const [actionState, setActionState] = useState<'idle' | 'preview' | 'printing' | 'sending' | 'success'>('idle');
+  const [actionState, setActionState] = useState<'idle' | 'preview' | 'success'>('idle');
 
   useEffect(() => {
     if (!isOpen) {
@@ -43,26 +50,26 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
   }, [isOpen]);
 
   const handleSend = async () => {
-    setActionState('sending');
-    const success = await reportService.sendReport(reportType, coordinatorNotes);
-    if (success) {
+    const sended = await executeSend(
+      () => reportService.sendReport(reportType as ReportType, coordinatorNotes),
+      'No se pudo generar el reporte. Intenta de nuevo.'
+    );
+
+    if (sended) {
       setActionState('success');
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } else {
-      setActionState('idle'); // Handle error appropriately
+      showToast('Reporte enviado a Secretaría Académica.', 'success');
+      setTimeout(() => { onClose(); }, 5000);
     }
   };
 
-  const handlePrint = () => {
-    setActionState('printing');
-    // Simulate PDF generation
-    setTimeout(() => {
-      window.print();
-      setActionState('idle');
-      onClose();
-    }, 1000);
+  const handlePrint = async () => {
+    const printed = await executePrint(
+      () => reportService.printReport(reportType as ReportType, coordinatorNotes)
+    );
+
+    if (printed) {
+      showToast('Reporte enviado a imprimir.', 'success');
+    }
   };
 
   if (!isOpen) return null;
@@ -70,12 +77,12 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          exit={{ opacity: 0 }} 
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-          onClick={actionState !== 'sending' && actionState !== 'printing' ? onClose : undefined}
+          onClick={!isSending && !isPrinting ? onClose : undefined}
         />
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -85,9 +92,9 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
         >
           {/* Header */}
           <div className="bg-gb-primary text-white p-6 relative">
-            <button 
+            <button
               onClick={onClose}
-              disabled={actionState === 'sending' || actionState === 'printing'}
+              disabled={isSending || isPrinting}
               className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors disabled:opacity-50"
             >
               <X size={24} />
@@ -107,7 +114,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
           {/* Content */}
           <div className={`${actionState === 'preview' ? 'p-0' : 'p-6'} overflow-hidden`}>
             {actionState === 'success' ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="py-12 flex flex-col items-center text-center"
@@ -119,7 +126,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                 <p className="text-slate-500 max-w-sm">
                   El reporte ha sido generado y enviado con éxito al correo institucional de la <strong>Secretaría Académica</strong> (academiapaum@buap.mx).
                 </p>
-                <button 
+                <button
                   onClick={onClose}
                   className="mt-8 text-gb-primary font-bold text-sm hover:underline"
                 >
@@ -129,7 +136,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
             ) : actionState === 'preview' ? (
               <div className="flex flex-col h-[75vh]">
                 <div className="bg-slate-100 p-4 border-b flex justify-between items-center shrink-0">
-                  <button 
+                  <button
                     onClick={() => setActionState('idle')}
                     className="flex items-center gap-2 text-slate-600 font-bold text-xs uppercase hover:text-gb-primary transition-colors"
                   >
@@ -137,17 +144,20 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                     Editar Selección
                   </button>
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={handlePrint}
-                      className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-lg font-bold text-xs hover:bg-slate-50 transition-all"
+                      disabled={isPrinting || isSending}
+                      className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-lg font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
                     >
-                      <Printer size={14} /> Imprimir
+                      <Printer size={14} /> {isPrinting ? 'Generando...' : 'Imprimir'}
                     </button>
-                    <button 
+                    <button
                       onClick={handleSend}
-                      className="flex items-center gap-2 bg-gb-primary text-white px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-gb-primary/90 transition-all shadow-lg shadow-gb-primary/20"
+                      disabled={isSending || isPrinting}
+                      className="flex items-center gap-2 bg-gb-primary text-white px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-gb-primary/90 transition-all shadow-lg shadow-gb-primary/20 disabled:opacity-60"
                     >
-                      <Send size={14} /> Enviar a Secretaria
+                      {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                      {isSending ? 'Enviando...' : 'Enviar a Secretaria'}
                     </button>
                   </div>
                 </div>
@@ -172,11 +182,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                     Seleccionar Tipo de Reporte
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-64 overflow-y-auto pr-2 scrollbar-thin">
-                    <button 
+                    <button
                       onClick={() => setReportType('academico')}
-                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${
-                        reportType === 'academico' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
-                      }`}
+                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${reportType === 'academico' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
+                        }`}
                     >
                       <div className={`p-2 rounded shrink-0 ${reportType === 'academico' ? 'bg-gb-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <Users size={20} />
@@ -187,11 +196,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                       </div>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setReportType('alumnos')}
-                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${
-                        reportType === 'alumnos' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
-                      }`}
+                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${reportType === 'alumnos' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
+                        }`}
                     >
                       <div className={`p-2 rounded shrink-0 ${reportType === 'alumnos' ? 'bg-gb-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <GraduationCap size={20} />
@@ -202,11 +210,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                       </div>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setReportType('curriculo')}
-                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${
-                        reportType === 'curriculo' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
-                      }`}
+                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${reportType === 'curriculo' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
+                        }`}
                     >
                       <div className={`p-2 rounded shrink-0 ${reportType === 'curriculo' ? 'bg-gb-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <BookOpen size={20} />
@@ -217,11 +224,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                       </div>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setReportType('sedes')}
-                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${
-                        reportType === 'sedes' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
-                      }`}
+                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${reportType === 'sedes' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
+                        }`}
                     >
                       <div className={`p-2 rounded shrink-0 ${reportType === 'sedes' ? 'bg-gb-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <Building2 size={20} />
@@ -232,11 +238,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                       </div>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setReportType('minuta_oficial')}
-                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${
-                        reportType === 'minuta_oficial' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
-                      }`}
+                      className={`flex items-start gap-4 p-4 rounded-lg border-2 transition-all ${reportType === 'minuta_oficial' ? 'border-gb-primary bg-[#E8F4FD]' : 'border-slate-100 hover:border-slate-200'
+                        }`}
                     >
                       <div className={`p-2 rounded shrink-0 ${reportType === 'minuta_oficial' ? 'bg-gb-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
                         <ListTodo size={20} />
@@ -253,7 +258,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                   <label className="block text-sm font-bold text-gb-secondary mb-2 uppercase tracking-widest">
                     Observaciones del Coordinador
                   </label>
-                  <textarea 
+                  <textarea
                     value={coordinatorNotes}
                     onChange={(e) => setCoordinatorNotes(e.target.value)}
                     placeholder="Ingrese observaciones, acuerdos adicionales o notas de seguimiento para este reporte oficial..."
@@ -262,26 +267,27 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex justify-between items-center px-2">
-                  <button 
+                  <button
                     onClick={onClose}
                     className="font-bold text-sm text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     Cerrar
                   </button>
                   <div className="flex gap-3">
-                    <button 
+                    <button
                       onClick={() => setActionState('preview')}
                       className="flex items-center gap-2 bg-white text-gb-primary border border-gb-primary/30 px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gb-primary/5 transition-all active:scale-95 shadow-sm"
                     >
                       <Eye size={18} />
                       Previsualizar Reporte
                     </button>
-                    <button 
+                    <button
                       onClick={handleSend}
-                      className="flex items-center gap-2 bg-gb-primary text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gb-primary/90 transition-all active:scale-95 shadow-lg shadow-gb-primary/20"
+                      disabled={isSending || isPrinting}
+                      className="flex items-center gap-2 bg-gb-primary text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gb-primary/90 transition-all active:scale-95 shadow-lg shadow-gb-primary/20 disabled:opacity-60"
                     >
-                      <Send size={18} />
-                      Enviar Directo
+                      {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                      {isSending ? 'Generando y enviando...' : 'Enviar Directo'}
                     </button>
                   </div>
                 </div>
