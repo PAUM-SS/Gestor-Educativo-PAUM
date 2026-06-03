@@ -442,7 +442,11 @@ export default function Faculty() {
       <AnimatePresence>
         {confirmDelete && (
           <ConfirmModal
-            message={`¿Desea dar de baja a ${confirmDelete.name}? Las secciones asignadas quedarán como SIN ASIGNAR.`}
+            message={
+              <>
+                ¿Desea dar de baja a <strong>{confirmDelete.name}</strong>? Las secciones asignadas quedarán como SIN ASIGNAR.
+              </>
+            }
             onConfirm={handleDeleteConfirm}
             onCancel={() => setConfirmDelete(null)}
           />

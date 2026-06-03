@@ -382,7 +382,11 @@ export default function Students() {
       <AnimatePresence>
         {confirmDelete && (
           <ConfirmModal
-            message={`¿Estás seguro de dar de baja a ${confirmDelete.name}? Esta acción eliminará su expediente de manera permanente.`}
+            message={
+              <>
+                ¿Estás seguro de dar de baja a <strong>{confirmDelete.name}</strong>? Esta acción eliminará su expediente de manera permanente.
+              </>
+            }
             onConfirm={handleDeleteConfirm}
             onCancel={() => setConfirmDelete(null)}
           />

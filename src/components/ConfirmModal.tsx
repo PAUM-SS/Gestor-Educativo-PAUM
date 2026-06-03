@@ -1,12 +1,23 @@
+import { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmModalProps {
-    message: string;
+    title?: string;
+    message: string | ReactNode;
+    confirmText?: string;
+    isProcessing?: boolean;
     onConfirm: () => void;
     onCancel: () => void;
 }
-export function ConfirmModal({ message, onConfirm, onCancel }: ConfirmModalProps) {
+export function ConfirmModal({
+    title = "Confirmar eliminación",
+    message,
+    confirmText = "Sí, dar de baja",
+    isProcessing = false,
+    onConfirm,
+    onCancel
+}: ConfirmModalProps) {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCancel} />
@@ -21,22 +32,24 @@ export function ConfirmModal({ message, onConfirm, onCancel }: ConfirmModalProps
                         <AlertTriangle size={20} className="text-red-600" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-900 mb-1">Confirmar eliminación</h3>
+                        <h3 className="font-bold text-slate-900 mb-1">{title}</h3>
                         <p className="text-sm text-slate-500">{message}</p>
                     </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                     <button
                         onClick={onCancel}
-                        className="flex-1 h-10 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors text-sm"
+                        disabled={isProcessing}
+                        className="flex-1 h-10 rounded-xl font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors text-sm disabled:opacity-50"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="flex-1 h-10 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors text-sm"
+                        disabled={isProcessing}
+                        className="flex-1 h-10 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors text-sm disabled:opacity-50"
                     >
-                        Sí, dar de baja
+                        {isProcessing ? 'Eliminando...' : confirmText}
                     </button>
                 </div>
             </motion.div>
