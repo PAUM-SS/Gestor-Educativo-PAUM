@@ -25,6 +25,7 @@ import {
   Minus,
   Printer,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 import { curriculumService } from '../services/curriculumService';
 import { Module } from '../types';
@@ -72,8 +73,11 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
   const [modules, setModules] = useState<Module[]>([]);
   const [moduleFiles, setModuleFiles] = useState<Record<string, ModuleFiles>>({});
   const [selectedPlanningModule, setSelectedPlanningModule] = useState<Module | null>(null);
-  const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<Module | null>(null);
+ 
+  
 
   // ─── Carga inicial ──────────────────────────────────────────────────────────
 
@@ -310,6 +314,12 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
                                       <span className="text-[10px] text-slate-500 font-medium truncate">
                                         {module.instructor}
                                       </span>
+                                      <button
+                                        onClick={() => setEditingModule(module)}
+                                        className="flex items-center gap-1 text-[9px] font-bold text-gb-primary uppercase bg-gb-primary/5 px-2 py-1 rounded hover:bg-gb-primary/10 transition-colors mt-1"
+                                      >
+                                        <Pencil size={10} /> Editar módulo
+                                      </button>
                                     </div>
 
                                     {module.planning && (() => {
@@ -426,7 +436,19 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           })}
         </div>
       )}
-
+      <AnimatePresence>
+        {editingModule && (
+          <EditModuleModal
+            module={editingModule}
+            onClose={() => setEditingModule(null)}
+            onSave={(updatedModule) => {
+              setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
+              setEditingModule(null);
+              onModuleUpdate?.();
+            }}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {selectedPlanningModule && (
           <PlanningModal
@@ -445,7 +467,150 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           <CurriculumReportModal onClose={() => setIsReportPreviewOpen(false)} />
         )}
       </AnimatePresence>
+      
     </div>
+  );
+}
+
+function EditModuleModal({ module, onClose, onSave }: { 
+  module: Module; 
+  onClose: () => void; 
+  onSave: (m: Module) => void;
+}) {
+  const [form, setForm] = useState({
+    title: module.title,
+    code: module.code,
+    credits: module.credits,
+    instructor: module.instructor,
+    description: module.description,
+    level: module.level,
+    status: module.status,
+    semester: module.semester,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const updated = await curriculumService.updateModule(module.id, form);
+    setSaving(false);
+    if (updated) onSave(updated);
+    else window.alert('No se pudo guardar el módulo.');
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="bg-gb-primary text-white p-5 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Plan de Estudios</p>
+            <h3 className="text-lg font-bold">Editar Módulo</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nombre del Módulo</label>
+              <input
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.title}
+                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Código</label>
+              <input
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.code}
+                onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Créditos</label>
+              <input
+                type="number"
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.credits}
+                onChange={e => setForm(p => ({ ...p, credits: Number(e.target.value) }))}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Instructor</label>
+              <input
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.instructor}
+                onChange={e => setForm(p => ({ ...p, instructor: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nivel</label>
+              <select
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.level}
+                onChange={e => setForm(p => ({ ...p, level: e.target.value as Module['level'] }))}
+              >
+                <option value="Básico">Básico</option>
+                <option value="Formativo">Formativo</option>
+                <option value="Minerva">Minerva</option>
+                <option value="Práctica/Servicio">Práctica/Servicio</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estado</label>
+              <select
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+                value={form.status}
+                onChange={e => setForm(p => ({ ...p, status: e.target.value as Module['status'] }))}
+              >
+                <option value="pendiente">Pendiente</option>
+                <option value="en_curso">En curso</option>
+                <option value="completado">Completado</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descripción</label>
+              <textarea
+                rows={3}
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary resize-none"
+                value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 bg-gb-primary text-white font-bold rounded-lg text-sm shadow-lg shadow-gb-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
