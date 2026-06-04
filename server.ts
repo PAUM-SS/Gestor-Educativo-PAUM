@@ -10,7 +10,7 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
 import { createRequire } from 'module';
-const PDFParse = createRequire(import.meta.url)('pdf-parse');
+import { PDFParse } from 'pdf-parse';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
 import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent } from './src/types';
@@ -517,7 +517,7 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
     /^Unidad\s+Contenido/,
   ];
 
-  const lines = rawLines.filter(line => 
+  const lines = rawLines.filter(line =>
     !skipPatterns.some(pattern => pattern.test(line))
   );
 
@@ -558,11 +558,11 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
       while (j < lines.length && j < i + 3) {
         const nextLine = lines[j];
         // Solo unir si es SOLO mayúsculas (título partido en dos)
-        if (/^[A-ZÁÉÍÓÚÑ\s]+$/.test(nextLine) && 
-            nextLine.length >= 2 && 
-            nextLine.length <= 30 &&
-            !/^\d+\./.test(nextLine) &&
-            !/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(nextLine)) { // no mezcla mayús/minús
+        if (/^[A-ZÁÉÍÓÚÑ\s]+$/.test(nextLine) &&
+          nextLine.length >= 2 &&
+          nextLine.length <= 30 &&
+          !/^\d+\./.test(nextLine) &&
+          !/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(nextLine)) { // no mezcla mayús/minús
           title = title + ' ' + nextLine;
           j++;
         } else {
@@ -612,7 +612,7 @@ function extractLearningOutcome(text: string): string {
   // Buscar sección "OBJETIVO" en el PDF
   const match = text.match(/(?:5\.\s*OBJETIVO[:\s]*|OBJETIVO[:\s]*\n)([\s\S]{20,600}?)(?=\n\s*6\.|$)/i);
   if (!match?.[1]) return '';
-  
+
   return match[1]
     .replace(/\n/g, ' ')
     .replace(/\s+/g, ' ')
@@ -992,7 +992,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const updated = await db.updateModule(req.params.moduleId, req.body);
       if (updated) res.json(updated);
       else res.status(404).json({ error: 'Module not found' });
-    } catch(e) {
+    } catch (e) {
       res.status(500).json({ error: 'Failed to update module' });
     }
   });
@@ -1487,9 +1487,9 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       const nodemailer = await import('nodemailer');
 
       const from = process.env.MAIL_FROM || '';
-      const to   = process.env.MAIL_TO   || 'academiapaum@buap.mx';
-      const user = process.env.MAIL_USER || from;
-      const pass = process.env.MAIL_PASS || '';
+      const to = process.env.MAIL_TO || '';
+      const user = process.env.SMTP_USER || from;
+      const pass = process.env.SMTP_PASS || '';
 
       if (!from || !pass) {
         console.warn('[Reports] MAIL_FROM / MAIL_PASS no configurados en .env. El correo no se enviará.');
@@ -1498,9 +1498,18 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
         return;
       }
 
-      const transporter = nodemailer.default.createTransport({
-        service: 'gmail',
-        auth: { user, pass },
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.office365.com',
+        port: 587,
+        secure: false,
+        requireTLS: true,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+        tls: {
+          ciphers: 'SSLv3'
+        }
       });
 
       const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
