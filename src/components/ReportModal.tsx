@@ -88,7 +88,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100"
+          className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-100"
         >
           {/* Header */}
           <div className="bg-gb-primary text-white p-6 relative">
@@ -134,7 +134,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                 </button>
               </motion.div>
             ) : actionState === 'preview' ? (
-              <div className="flex flex-col h-[75vh]">
+              <div className="flex flex-col h-[80vh]">
                 <div className="bg-slate-100 p-4 border-b flex justify-between items-center shrink-0">
                   <button
                     onClick={() => setActionState('idle')}
@@ -162,7 +162,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                   </div>
                 </div>
                 <div className="flex-1 overflow-auto bg-slate-200">
-                  <div className="scale-[0.8] origin-top transform -mb-[25%]">
+                  <div className="scale-[1] origin-top transform -mb-[25%]">
                     <PDFPreview type={reportType} notes={coordinatorNotes} />
                   </div>
                 </div>
