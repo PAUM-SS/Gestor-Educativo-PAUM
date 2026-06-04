@@ -9,7 +9,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
+const PDFParse = createRequire(import.meta.url)('pdf-parse');
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
 import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent } from './src/types';
@@ -499,6 +500,109 @@ function parseFacultyImport(file: UploadedFile) {
     .filter((record): record is FacultyMember => Boolean(record));
 }
 
+function extractUnitsFromPDF(text: string): { unitNumber: string; title: string; content: string }[] {
+  const units: { unitNumber: string; title: string; content: string }[] = [];
+  const seen = new Set<string>();
+
+  // Limpiar línea por línea
+  const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const skipPatterns = [
+    /^Benemérita Universidad/,
+    /^Vicerrectoría de Docencia/,
+    /^Dirección General/,
+    /^Facultad de Medicina/,
+    /^-- \d+ of \d+ --$/,
+    /^Bioquímica\s*$/i,
+    /^\d+$/, // números de página solos
+    /^Unidad\s+Contenido/,
+  ];
+
+  const lines = rawLines.filter(line => 
+    !skipPatterns.some(pattern => pattern.test(line))
+  );
+
+
+  // Palabras excluidas — secciones del documento que no son unidades temáticas
+  const excluded = [
+    'DATOS GENERALES', 'CARGA HORARIA', 'REVISIONES', 'ACTUALIZACIONES',
+    'OBJETIVO', 'CONTENIDOS TEMÁTICOS', 'CONTRIBUCIÓN', 'ESTRATEGIAS',
+    'CRITERIOS', 'REQUISITOS', 'PERFIL DESEABLE', 'DESCRIBA', 'EJES',
+    'PERFIL DE EGRESO'
+  ];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const match = line.match(/^(\d+)\.\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s\/]{1,40})(?:\s+\d+\.\d+|\s*$)/);
+
+    // Caso especial: título muy corto (ej. "pH")
+    const shortMatch = line.match(/^(\d+)\.\s+([a-záéíóúñA-ZÁÉÍÓÚÑ]{1,5})\s+\d+\.\d+/);
+    if (shortMatch) {
+      const unitNumber = shortMatch[1];
+      const title = shortMatch[2].trim().toUpperCase();
+      const isExcluded = excluded.some(ex => title.includes(ex));
+      if (!isExcluded && !seen.has(title)) {
+        seen.add(title);
+        units.push({ unitNumber, title, content: '' });
+      }
+      i++;
+      continue;  // saltar el procesamiento normal
+    }
+
+    if (match) {
+      let unitNumber = match[1];
+      let title = match[2].trim();
+
+      // Unir con la siguiente línea si el título está incompleto
+      let j = i + 1;
+      while (j < lines.length && j < i + 3) {
+        const nextLine = lines[j];
+        // Solo unir si es SOLO mayúsculas (título partido en dos)
+        if (/^[A-ZÁÉÍÓÚÑ\s]+$/.test(nextLine) && 
+            nextLine.length >= 2 && 
+            nextLine.length <= 30 &&
+            !/^\d+\./.test(nextLine) &&
+            !/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(nextLine)) { // no mezcla mayús/minús
+          title = title + ' ' + nextLine;
+          j++;
+        } else {
+          break;
+        }
+      }
+      i = j - 1;
+
+      const isExcluded = excluded.some(ex => title.toUpperCase().includes(ex));
+      const isDuplicate = seen.has(title.toUpperCase());
+      const isTableHeader = title.toUpperCase().includes('TEMÁTICO') || title.toUpperCase().includes('REFERENCIAS');
+
+      if (!isExcluded && !isDuplicate && !isTableHeader && title.length >= 3 && title.length <= 80) {
+        seen.add(title.toUpperCase());
+
+        // Recoger contenido temático
+        const contentLines: string[] = [];
+        let k = i + 1;
+        while (k < lines.length && k < i + 20) {
+          const nextLine = lines[k];
+          if (/^\d+\.\s+[A-ZÁÉÍÓÚÑ]/.test(nextLine)) break;
+          if (nextLine.length > 5 && !/^(McKee|Rodwell|John|Baynes|Capítulo|Sección)/.test(nextLine)) {
+            contentLines.push(nextLine);
+          }
+          k++;
+        }
+
+        units.push({
+          unitNumber,
+          title,
+          content: contentLines.join(' ').slice(0, 400)
+        });
+      }
+    }
+    i++;
+  }
+
+  return units;
+}
+
 export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'> = {}) {
   const app = express();
 
@@ -917,13 +1021,27 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
       const publicUrl = `/uploads/curriculum/${encodeURIComponent(moduleId)}/${encodeURIComponent(savedFileName)}`;
       const updatedModule = await db.updateModuleDocument(moduleId, type, publicUrl, req.file.originalname);
-
       if (!updatedModule) {
         res.status(404).json({ error: 'Module not found' });
         return;
       }
 
-      res.json(updatedModule);
+      // Si es syllabus, intentar extraer unidades para pre-poblar la planeación
+      let detectedUnits: { unitNumber: string; title: string; content: string }[] = [];
+      if (type === 'syllabus') {
+        try {
+          const pdfLib = createRequire(import.meta.url)('pdf-parse');
+          const parseFn = pdfLib.PDFParse;
+          const parser = new parseFn({ data: req.file.buffer });
+          const parsed = await parser.getText();
+          const text = String(parsed?.text || '').replace(/\u0000/g, '');
+          detectedUnits = extractUnitsFromPDF(text);
+        } catch (e) {
+          console.warn('[Curriculum] No se pudo extraer unidades del PDF:', e);
+        }
+      }
+
+      res.json({ module: updatedModule, detectedUnits });
     } catch (error) {
       console.error('Curriculum upload error:', error);
       res.status(500).json({ error: 'Failed to upload curriculum document' });

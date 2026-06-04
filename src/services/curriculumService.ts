@@ -23,16 +23,22 @@ export const curriculumService = {
     moduleId: string,
     type: 'syllabus' | 'planning',
     file: File
-  ): Promise<Module | null> => {
-    const formData = new FormData();
-    formData.append('document', file);
-    const response = await fetch(`/api/curriculum/${moduleId}/files/${type}`, {
-      method: 'POST',
-      body: formData
-    });
+  ): Promise<{ module: Module; detectedUnits: { unitNumber: string; title: string; content: string }[] } | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
 
-    if (!response.ok) throw new Error('Error uploading module document');
-    return await response.json();
+      const response = await fetch(`/api/curriculum/${moduleId}/files/${type}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Error uploading module document');
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to upload module document:', error);
+      return null;
+    }
   },
 
   updateModule: async (moduleId: string, updates: Partial<Module>): Promise<Module | null> => {
