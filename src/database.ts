@@ -801,11 +801,19 @@ export class SqliteDatabase {
 
     this.db.prepare(`
       UPDATE modules SET title=?, code=?, credits=?, description=?, instructor=?, 
-      competencies=?, status=?, semester=?, level=? WHERE id=?
+      competencies=?, status=?, semester=?, level=?, planning=? WHERE id=?
     `).run(
-      updated.title, updated.code, updated.credits, updated.description, updated.instructor,
-      JSON.stringify(updated.competencies), updated.status, String(updated.semester),
-      updated.level, moduleId
+      updated.title, 
+      updated.code, 
+      updated.credits, 
+      updated.description, 
+      updated.instructor,
+      JSON.stringify(updated.competencies), 
+      updated.status, 
+      String(updated.semester),
+      updated.level, 
+      updated.planning ? JSON.stringify(updated.planning) : null,
+      moduleId
     );
 
     return updated;

@@ -581,10 +581,15 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
         // Recoger contenido temático
         const contentLines: string[] = [];
         let k = i + 1;
-        while (k < lines.length && k < i + 20) {
+        while (k < lines.length && k < i + 30) {
           const nextLine = lines[k];
-          if (/^\d+\.\s+[A-ZÁÉÍÓÚÑ]/.test(nextLine)) break;
-          if (nextLine.length > 5 && !/^(McKee|Rodwell|John|Baynes|Capítulo|Sección)/.test(nextLine)) {
+          // Parar si encontramos la siguiente unidad
+          if (/^\d+\.\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]/.test(nextLine)) break;
+          // Filtrar referencias bibliográficas y líneas muy cortas
+          const isReference = /^(McKee|Rodwell|John|Baynes|Capítulo|Sección|J\.R\.|7e\.|32e\.|5e\.|Elsevier|McGraw)/.test(nextLine);
+          const isPageNumber = /^\d+$/.test(nextLine);
+          const isTooShort = nextLine.length < 5;
+          if (!isReference && !isPageNumber && !isTooShort) {
             contentLines.push(nextLine);
           }
           k++;
@@ -601,6 +606,18 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
   }
 
   return units;
+}
+
+function extractLearningOutcome(text: string): string {
+  // Buscar sección "OBJETIVO" en el PDF
+  const match = text.match(/(?:5\.\s*OBJETIVO[:\s]*|OBJETIVO[:\s]*\n)([\s\S]{20,600}?)(?=\n\s*6\.|$)/i);
+  if (!match?.[1]) return '';
+  
+  return match[1]
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
 }
 
 export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'> = {}) {
@@ -1028,6 +1045,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
 
       // Si es syllabus, intentar extraer unidades para pre-poblar la planeación
       let detectedUnits: { unitNumber: string; title: string; content: string }[] = [];
+      let learningOutcome = '';
       if (type === 'syllabus') {
         try {
           const pdfLib = createRequire(import.meta.url)('pdf-parse');
@@ -1036,12 +1054,14 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
           const parsed = await parser.getText();
           const text = String(parsed?.text || '').replace(/\u0000/g, '');
           detectedUnits = extractUnitsFromPDF(text);
+          console.log('[Units content]:', detectedUnits.map(u => ({ title: u.title, contentLen: u.content.length, content: u.content.slice(0, 100) })));
+          learningOutcome = extractLearningOutcome(text);
         } catch (e) {
           console.warn('[Curriculum] No se pudo extraer unidades del PDF:', e);
         }
       }
 
-      res.json({ module: updatedModule, detectedUnits });
+      res.json({ module: updatedModule, detectedUnits, learningOutcome });
     } catch (error) {
       console.error('Curriculum upload error:', error);
       res.status(500).json({ error: 'Failed to upload curriculum document' });

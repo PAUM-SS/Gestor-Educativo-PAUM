@@ -23,7 +23,7 @@ export const curriculumService = {
     moduleId: string,
     type: 'syllabus' | 'planning',
     file: File
-  ): Promise<{ module: Module; detectedUnits: { unitNumber: string; title: string; content: string }[] } | null> => {
+  ): Promise<{ module: Module; detectedUnits: { unitNumber: string; title: string; content: string }[]; learningOutcome: string } | null> => {
     try {
       const formData = new FormData();
       formData.append('document', file);

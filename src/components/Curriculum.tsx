@@ -79,6 +79,7 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
   const [pendingPlanning, setPendingPlanning] = useState<{
     module: Module;
     detectedUnits: { unitNumber: string; title: string; content: string }[];
+    learningOutcome: string;
   } | null>(null);
  
   
@@ -147,7 +148,7 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
 
         // Si es syllabus y se detectaron unidades, abrir modal de sesiones
         if (type === 'syllabus' && detectedUnits && detectedUnits.length > 0) {
-          setPendingPlanning({ module: updatedModule, detectedUnits });
+          setPendingPlanning({ module: updatedModule, detectedUnits, learningOutcome: result.learningOutcome || '' });
         }
 
       } finally {
@@ -479,6 +480,7 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           <PlanningSetupModal
             module={pendingPlanning.module}
             detectedUnits={pendingPlanning.detectedUnits}
+            learningOutcome={pendingPlanning.learningOutcome}
             onClose={() => setPendingPlanning(null)}
             onConfirm={(updatedModule) => {
               setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
@@ -635,9 +637,10 @@ function EditModuleModal({ module, onClose, onSave }: {
   );
 }
 
-function PlanningSetupModal({ module, detectedUnits, onClose, onConfirm }: {
+function PlanningSetupModal({ module, detectedUnits, learningOutcome, onClose, onConfirm }: {
   module: Module;
   detectedUnits: { unitNumber: string; title: string; content: string }[];
+  learningOutcome: string;
   onClose: () => void;
   onConfirm: (updatedModule: Module) => void;
 }) {
@@ -651,14 +654,14 @@ function PlanningSetupModal({ module, detectedUnits, onClose, onConfirm }: {
     try {
       const planning = {
         id: `planning-${module.id}`,
-        learningOutcome: '',
+        learningOutcome: learningOutcome,
         competencies: { generic: [], specific: [] },
         units: detectedUnits.map((u, idx) => ({
           id: `unit-${module.id}-${u.unitNumber}`,
           unitNumber: u.unitNumber,
           title: u.title,
           content: u.content,
-          activity: '',
+          activity: u.content || '',
           strategies: [],
           resources: [],
           evidence: '',
