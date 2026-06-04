@@ -76,6 +76,10 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
+  const [pendingPlanning, setPendingPlanning] = useState<{
+    module: Module;
+    detectedUnits: { unitNumber: string; title: string; content: string }[];
+  } | null>(null);
  
   
 
@@ -102,50 +106,53 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
     setOpenSemesters(prev => ({ ...prev, [sem]: !prev[sem] }));
   };
 
-  const handleFileUpload = async (
-    moduleId: string,
-    type: 'syllabus' | 'planning',
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileUpload = async (moduleId: string, type: 'syllabus' | 'planning', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      showToast('Solo se permiten archivos PDF para programa o planeación.', 'error');
-      return;
-    }
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        window.alert('Solo se permiten archivos PDF para programa o planeación.');
+        return;
+      }
 
-    const requestKey = `${moduleId}:${type}`;
-    setUploadingKey(requestKey);
+      const requestKey = `${moduleId}:${type}`;
+      setUploadingKey(requestKey);
 
-    const updatedModule = await executeUpload(
-      () => curriculumService.uploadModuleDocument(moduleId, type, file),
-      'No se pudo guardar el documento del módulo. Intenta de nuevo.'
-    );
+      try {
+        const result = await curriculumService.uploadModuleDocument(moduleId, type, file);
 
-    setUploadingKey(null);
+        if (!result) {
+          window.alert('No se pudo guardar el documento del módulo.');
+          return;
+        }
 
-    if (updatedModule) {
-      setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
-      setModuleFiles(prev => ({
-        ...prev,
-        [moduleId]: {
-          ...prev[moduleId],
-          [type]: {
-            name: type === 'syllabus'
-              ? updatedModule.syllabusFileName || file.name
-              : updatedModule.didacticPlanningFileName || file.name,
-            url: type === 'syllabus'
-              ? updatedModule.syllabusUrl || ''
-              : updatedModule.didacticPlanningUrl || '',
+        const { module: updatedModule, detectedUnits } = result;
+
+        setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
+        setModuleFiles(prev => ({
+          ...prev,
+          [moduleId]: {
+            ...prev[moduleId],
+            [type]: {
+              name: type === 'syllabus'
+                ? updatedModule.syllabusFileName || file.name
+                : updatedModule.didacticPlanningFileName || file.name,
+              url: type === 'syllabus'
+                ? updatedModule.syllabusUrl || ''
+                : updatedModule.didacticPlanningUrl || '',
+            },
           },
-        },
-      }));
-      showToast(
-        type === 'syllabus' ? 'Programa académico subido correctamente.' : 'Planeación didáctica subida correctamente.',
-        'success'
-      );
+        }));
+
+        // Si es syllabus y se detectaron unidades, abrir modal de sesiones
+        if (type === 'syllabus' && detectedUnits && detectedUnits.length > 0) {
+          setPendingPlanning({ module: updatedModule, detectedUnits });
+        }
+
+      } finally {
+        setUploadingKey(null);
+      }
     }
   };
 
@@ -467,6 +474,20 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           <CurriculumReportModal onClose={() => setIsReportPreviewOpen(false)} />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {pendingPlanning && (
+          <PlanningSetupModal
+            module={pendingPlanning.module}
+            detectedUnits={pendingPlanning.detectedUnits}
+            onClose={() => setPendingPlanning(null)}
+            onConfirm={(updatedModule) => {
+              setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
+              setPendingPlanning(null);
+              onModuleUpdate?.();
+            }}
+          />
+        )}
+      </AnimatePresence>
       
     </div>
   );
@@ -607,6 +628,123 @@ function EditModuleModal({ module, onClose, onSave }: {
             className="px-6 py-2 bg-gb-primary text-white font-bold rounded-lg text-sm shadow-lg shadow-gb-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
           >
             {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function PlanningSetupModal({ module, detectedUnits, onClose, onConfirm }: {
+  module: Module;
+  detectedUnits: { unitNumber: string; title: string; content: string }[];
+  onClose: () => void;
+  onConfirm: (updatedModule: Module) => void;
+}) {
+  const [sessions, setSessions] = useState<Record<string, number>>(
+    Object.fromEntries(detectedUnits.map(u => [u.unitNumber, 18]))
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    try {
+      const planning = {
+        id: `planning-${module.id}`,
+        learningOutcome: '',
+        competencies: { generic: [], specific: [] },
+        units: detectedUnits.map((u, idx) => ({
+          id: `unit-${module.id}-${u.unitNumber}`,
+          unitNumber: u.unitNumber,
+          title: u.title,
+          content: u.content,
+          activity: '',
+          strategies: [],
+          resources: [],
+          evidence: '',
+          instrument: '',
+          weight: Math.floor(100 / detectedUnits.length),
+          sessions: sessions[u.unitNumber] || 18,
+          completedSessions: 0,
+          sessionLog: [],
+          status: 'pendiente' as const,
+        }))
+      };
+
+      const updated = await curriculumService.updateModule(module.id, { planning });
+      if (updated) onConfirm(updated);
+      else window.alert('No se pudo guardar la planeación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="bg-gb-primary text-white p-5 flex items-center justify-between rounded-t-2xl shrink-0">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Programa Académico Detectado</p>
+            <h3 className="text-lg font-bold">Definir Sesiones por Unidad</h3>
+            <p className="text-xs text-white/70 mt-1">{module.title}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto flex-1">
+          <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+            Se detectaron <span className="font-bold text-gb-primary">{detectedUnits.length} unidades</span> en el programa. Define el número de sesiones para cada una — esto habilitará el seguimiento de avance.
+          </p>
+          <div className="space-y-3">
+            {detectedUnits.map(unit => (
+              <div key={unit.unitNumber} className="flex items-center justify-between gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Unidad {unit.unitNumber}</p>
+                  <p className="text-sm font-bold text-gb-secondary truncate">{unit.title}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Sesiones</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={sessions[unit.unitNumber]}
+                    onChange={e => setSessions(prev => ({ ...prev, [unit.unitNumber]: Number(e.target.value) }))}
+                    className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-center text-gb-secondary focus:outline-none focus:border-gb-primary"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all"
+          >
+            Omitir
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={saving}
+            className="px-6 py-2 bg-gb-primary text-white font-bold rounded-lg text-sm shadow-lg shadow-gb-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+          >
+            {saving ? 'Creando planeación...' : 'Crear Planeación'}
           </button>
         </div>
       </motion.div>
