@@ -13,7 +13,7 @@ import Faculty from './components/Faculty';
 import ClinicalFields from './components/ClinicalFields';
 import CalendarView from './components/CalendarView';
 import MinutesView from './components/MinutesView';
-//import SchedulingView from './components/SchedulingView';
+import SchedulingView from './components/SchedulingView';
 import PAUMShield from './components/PAUMShield';
 import { Send } from 'lucide-react';
 import ReportModal from './components/ReportModal';
@@ -36,18 +36,18 @@ function AppContent() {
     refreshModules();
   }, []);
 
-  const progress  = calcCurriculumProgress(modules);
-  const basico    = progress.byLevel.find(l => l.level === 'Básico')!;
+  const progress = calcCurriculumProgress(modules);
+  const basico = progress.byLevel.find(l => l.level === 'Básico')!;
   const formativo = progress.byLevel.find(l => l.level === 'Formativo')!;
 
   const renderView = () => {
-    switch(currentView) {
+    switch (currentView) {
       case 'dashboard': return <Overview onViewChange={setCurrentView} />;
       case 'students': return <Students />;
       case 'curriculum': return <Curriculum onModuleUpdate={refreshModules} />;
       case 'faculty': return <Faculty />;
       case 'clinical-fields': return <ClinicalFields />;
-      //case 'scheduling': return <SchedulingView />;
+      case 'scheduling': return <SchedulingView />;
       case 'calendar': return <CalendarView />;
       case 'minutes': return <MinutesView />;
       default: return <Overview onViewChange={setCurrentView} />;
@@ -57,9 +57,9 @@ function AppContent() {
   return (
     <div className="flex min-h-screen bg-gb-bg font-sans">
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
-      
+
       <div className="flex-1 ml-60 flex flex-col">
-          {/* Geometric Balance Header */}
+        {/* Geometric Balance Header */}
         <header className="h-20 bg-white border-b-2 border-gb-primary flex items-center justify-between px-6 md:px-10 sticky top-0 z-40 lg:hidden xl:flex">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-white border border-gb-primary/15 shadow-sm p-1.5 shrink-0">
@@ -73,7 +73,7 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-6">
-            <button 
+            <button
               onClick={() => setIsReportModalOpen(true)}
               className="hidden lg:flex items-center gap-2 bg-gb-primary text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-gb-primary/90 transition-all active:scale-95 shadow-lg shadow-gb-primary/20"
             >
@@ -110,7 +110,7 @@ function AppContent() {
             </div>
           </div>
 
-          <button 
+          <button
             onClick={() => setIsReportModalOpen(true)}
             className="w-full flex items-center justify-center gap-2 bg-gb-primary text-white px-4 py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-gb-primary/90 transition-all active:scale-95 shadow-lg shadow-gb-primary/20"
           >
@@ -139,7 +139,7 @@ function AppContent() {
           <aside className="w-72 bg-white p-8 hidden xl:block">
             <div className="mb-8 p-4 bg-[#E8F4FD] rounded-lg border border-gb-primary/20">
               <span className="section-label text-gb-primary">Acciones Rápidas</span>
-              <button 
+              <button
                 onClick={() => setIsReportModalOpen(true)}
                 className="w-full mt-4 flex items-center justify-center gap-2 bg-gb-primary text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-gb-primary/90 transition-all active:scale-95 shadow-lg shadow-gb-primary/20"
               >
@@ -162,7 +162,7 @@ function AppContent() {
               </div>
               <p className="text-[10px] text-slate-400 text-center mb-4 leading-tight">Representa el avance global en la obtención de créditos acumulados y validación de temarios del programa PAUM.</p>
               <div className="w-full space-y-2">
-                
+
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Básico</span>
                   <span className="text-gb-primary">{basico.pct}% ({basico.completed}/{basico.total})</span>
@@ -178,7 +178,7 @@ function AppContent() {
                 <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                   <div className={`h-full bg-gb-accent`} style={{ width: `${formativo.pct}%` }} />
                 </div>
-                
+
                 <div className="flex justify-between text-[10px] font-bold">
                   <span className="text-slate-500 uppercase">Nivel Minerva</span>
                   <span className="text-gb-primary">
@@ -220,7 +220,7 @@ function AppContent() {
           </aside>
         </div>
       </div>
-      
+
       <ReportModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} />
     </div>
   );
