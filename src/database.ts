@@ -192,10 +192,8 @@ export class SqliteDatabase {
       CREATE TABLE IF NOT EXISTS modules (
         id TEXT PRIMARY KEY,
         title TEXT,
-        code TEXT,
         credits INTEGER,
         description TEXT,
-        instructor TEXT,
         competencies TEXT,
         status TEXT,
         semester TEXT,
@@ -247,15 +245,17 @@ export class SqliteDatabase {
       CREATE TABLE IF NOT EXISTS sections (
         id TEXT PRIMARY KEY,
         moduleId TEXT NOT NULL REFERENCES modules(id),
-        moduleName TEXT,
         facultyId TEXT REFERENCES faculty(id) ON DELETE SET NULL,
-        groupCode TEXT NOT NULL,
-        semester TEXT,
-        room TEXT,
-        roomType TEXT,
         capacity INTEGER DEFAULT 0,
         enrolled INTEGER DEFAULT 0,
         schedule TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS section_enrollments (
+        studentId TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        sectionId TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+        enrolledAt TEXT NOT NULL,
+        PRIMARY KEY (studentId, sectionId)
       );
 
       CREATE TABLE IF NOT EXISTS section_daily_records (
@@ -308,25 +308,6 @@ export class SqliteDatabase {
       );
     `);
 
-    // 1.5. Migraciones de columnas (para bases de datos que ya existen)
-    const columnExists = (table: string, column: string): boolean => {
-      const cols = this.db.prepare('PRAGMA table_info(' + table + ')').all() as { name: string }[];
-      return cols.some(c => c.name === column);
-    };
-
-    if (!columnExists('sections', 'semester')) {
-      this.db.exec('ALTER TABLE sections ADD COLUMN semester TEXT');
-      console.log('[Base de Datos] Migración: columna semester agregada a sections.');
-    }
-    if (!columnExists('rotations', 'clinicalFieldId')) {
-      this.db.exec('ALTER TABLE rotations ADD COLUMN clinicalFieldId TEXT');
-      console.log('[Base de Datos] Migración: columna clinicalFieldId agregada a rotations.');
-    }
-    if (!columnExists('activities', 'relatedId')) {
-      this.db.exec('ALTER TABLE activities ADD COLUMN relatedId TEXT');
-      console.log('[Base de Datos] Migración: columna relatedId agregada a activities.');
-    }
-
     // 2. Migration logic
     const seeded = this.db
       .prepare("SELECT value FROM _meta WHERE key = 'seeded'")
@@ -336,17 +317,6 @@ export class SqliteDatabase {
       console.log('[Base de Datos] Primera ejecución. Iniciando siembra o migración.');
 
       let initialData: DatabaseSchema | null = null;
-      const oldJsonPath = path.join(this.dataDir, 'database.json');
-
-      if (existsSync(oldJsonPath)) {
-        console.log(`[Base de Datos] Migrando desde ${oldJsonPath}...`);
-        try {
-          const fileContent = await fs.readFile(oldJsonPath, 'utf-8');
-          initialData = JSON.parse(fileContent);
-        } catch (error) {
-          console.error('[Base de Datos] Error al leer database.json:', error);
-        }
-      }
 
       if (!initialData) {
         initialData = {
@@ -372,9 +342,9 @@ export class SqliteDatabase {
 
         const insertModule = this.db.prepare(`
         INSERT OR IGNORE INTO modules 
-        (id, title, code, credits, description, instructor, competencies, status, semester, level, 
+        (id, title, credits, description, competencies, status, semester, level, 
         syllabusUrl, syllabusFileName, didacticPlanningUrl, didacticPlanningFileName, planning) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const insertMinute = this.db.prepare(`
@@ -397,8 +367,8 @@ export class SqliteDatabase {
 
         const insertSection = this.db.prepare(`
         INSERT OR IGNORE INTO sections 
-        (id, moduleId, moduleName, facultyId, groupCode, semester, room, roomType, capacity, enrolled, schedule) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, moduleId, facultyId, capacity, enrolled, schedule) 
+        VALUES (?, ?, ?, ?, ?, ?)
         `);
 
         const insertSDR = this.db.prepare(`
@@ -450,10 +420,8 @@ export class SqliteDatabase {
             insertModule.run(
               m.id,
               m.title,
-              m.code,
               m.credits,
               m.description,
-              m.instructor,
               m.competencies ? JSON.stringify(m.competencies) : '[]',
               m.status,
               m.semester !== undefined ? String(m.semester) : null,
@@ -521,12 +489,7 @@ export class SqliteDatabase {
             insertSection.run(
               sec.id,
               sec.moduleId,
-              sec.moduleName ?? null,
               sec.facultyId || null,
-              sec.groupCode,
-              sec.semester ?? null,
-              sec.room ?? null,
-              sec.roomType ?? null,
               sec.capacity ?? 0,
               sec.enrolled ?? 0,
               sec.schedule ? JSON.stringify(sec.schedule) : '[]'
@@ -605,11 +568,6 @@ export class SqliteDatabase {
         tx(initialData);
       } finally {
         this.db.pragma('foreign_keys = ON');
-      }
-
-      if (existsSync(oldJsonPath)) {
-        await fs.rename(oldJsonPath, oldJsonPath + '.bak')
-          .catch(e => console.warn("[Base de Datos] No se pudo renombrar database.json: ", e));
       }
     }
     console.log(`[Base de Datos] SQLite Lista en: ${this.dbPath}`);
@@ -800,14 +758,12 @@ export class SqliteDatabase {
     const updated = { ...current, ...updates };
 
     this.db.prepare(`
-      UPDATE modules SET title=?, code=?, credits=?, description=?, instructor=?, 
+      UPDATE modules SET title=?, credits=?, description=?, 
       competencies=?, status=?, semester=?, level=?, planning=? WHERE id=?
     `).run(
       updated.title, 
-      updated.code, 
       updated.credits, 
       updated.description, 
-      updated.instructor,
       JSON.stringify(updated.competencies), 
       updated.status, 
       String(updated.semester),
@@ -828,10 +784,6 @@ export class SqliteDatabase {
 
     const tx = this.db.transaction(() => {
       this.db.prepare(`UPDATE faculty SET name=?, category=?, level=?, dedication=?, seniority=?, hireDate=?, compliance=?, adscription=?, email=?, phone=?, photo=?, weeklySchedule=?, permissions=? WHERE id=?`).run(updated.name, updated.category, updated.level, updated.dedication, updated.seniority, updated.hireDate, JSON.stringify(updated.compliance), updated.adscription, updated.email, updated.phone, updated.photo, JSON.stringify(updated.weeklySchedule), JSON.stringify(updated.permissions), id);
-
-      if (updates.name && faculty.name !== updated.name) {
-        this.db.prepare("UPDATE modules SET instructor=? WHERE instructor=?").run(updated.name, faculty.name);
-      }
     });
     tx();
     return updated;
@@ -854,7 +806,6 @@ export class SqliteDatabase {
     const tx = this.db.transaction(() => {
       // Actualizar referencias ANTES de eliminar para respetar llaves foráneas
       this.db.prepare("UPDATE sections SET facultyId=NULL WHERE facultyId=?").run(id);
-      this.db.prepare("UPDATE modules SET instructor='Sin asignar' WHERE instructor=?").run(existing.name);
       this.db.prepare("DELETE FROM faculty WHERE id = ?").run(id);
     });
     tx();
@@ -876,10 +827,6 @@ export class SqliteDatabase {
         } else {
           const f = normalizedMember;
           this.db.prepare(`UPDATE faculty SET name=?, category=?, level=?, dedication=?, seniority=?, hireDate=?, compliance=?, adscription=?, email=?, phone=?, photo=?, weeklySchedule=?, permissions=? WHERE id=?`).run(f.name, f.category, f.level, f.dedication, f.seniority, f.hireDate, JSON.stringify(f.compliance || {}), f.adscription, f.email, f.phone, f.photo, JSON.stringify(f.weeklySchedule || []), JSON.stringify(f.permissions || []), f.id);
-
-          if (existing.name !== f.name) {
-            this.db.prepare("UPDATE modules SET instructor=? WHERE instructor=?").run(f.name, existing.name);
-          }
           updated += 1;
         }
       }
@@ -930,7 +877,7 @@ export class SqliteDatabase {
       : updates;
     const updated = normalizeSection({ ...section, ...normalizedUpdates });
 
-    this.db.prepare(`UPDATE sections SET moduleId=?, moduleName=?, facultyId=?, groupCode=?, semester=?, room=?, roomType=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(updated.moduleId, updated.moduleName, updated.facultyId || null, updated.groupCode, updated.semester ?? null, updated.room, updated.roomType, updated.capacity, updated.enrolled, JSON.stringify(updated.schedule), id);
+    this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(updated.moduleId, updated.facultyId || null, updated.capacity, updated.enrolled, JSON.stringify(updated.schedule), id);
 
     return updated;
   }
