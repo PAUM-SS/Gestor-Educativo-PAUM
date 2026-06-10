@@ -303,7 +303,7 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
 
                                   <div>
                                     <div className="flex items-center gap-2 mb-0.5">
-                                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">{module.code}</span>
+                                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">{module.id}</span>
                                       <span className={`px-2 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-widest ${module.level === 'Minerva' ? 'bg-amber-100 text-amber-700' :
                                         module.level === 'Básico' ? 'bg-blue-100 text-blue-700' :
                                           module.level === 'Formativo' ? 'bg-purple-100 text-purple-700' :
@@ -318,9 +318,6 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
                                     <div className="flex items-center gap-3 mt-1.5 overflow-hidden">
                                       <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
                                         {module.credits} Créditos
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 font-medium truncate">
-                                        {module.instructor}
                                       </span>
                                       <button
                                         onClick={() => setEditingModule(module)}
@@ -460,8 +457,8 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
       <AnimatePresence>
         {selectedPlanningModule && (
           <PlanningModal
-            module={selectedPlanningModule} 
-            onClose={() => setSelectedPlanningModule(null)} 
+            module={selectedPlanningModule}
+            onClose={() => setSelectedPlanningModule(null)}
             onUpdate={(updatedModule) => {
               setModules(prev => prev.map(m => m.id === updatedModule.id ? updatedModule : m));
               setSelectedPlanningModule(updatedModule);
@@ -495,16 +492,15 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
   );
 }
 
-function EditModuleModal({ module, onClose, onSave }: { 
-  module: Module; 
-  onClose: () => void; 
+function EditModuleModal({ module, onClose, onSave }: {
+  module: Module;
+  onClose: () => void;
   onSave: (m: Module) => void;
 }) {
   const [form, setForm] = useState({
     title: module.title,
-    code: module.code,
+    code: module.id,
     credits: module.credits,
-    instructor: module.instructor,
     description: module.description,
     level: module.level,
     status: module.status,
@@ -570,14 +566,6 @@ function EditModuleModal({ module, onClose, onSave }: {
                 className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
                 value={form.credits}
                 onChange={e => setForm(p => ({ ...p, credits: Number(e.target.value) }))}
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Instructor</label>
-              <input
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
-                value={form.instructor}
-                onChange={e => setForm(p => ({ ...p, instructor: e.target.value }))}
               />
             </div>
             <div>

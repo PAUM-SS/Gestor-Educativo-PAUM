@@ -11,9 +11,10 @@ import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
 import { createRequire } from 'module';
 import { PDFParse } from 'pdf-parse';
+import * as xlsx from 'xlsx';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
-import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent } from './src/types';
+import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent, AcademicSection } from './src/types';
 
 dotenv.config();
 
@@ -500,6 +501,128 @@ function parseFacultyImport(file: UploadedFile) {
     .filter((record): record is FacultyMember => Boolean(record));
 }
 
+function parseSectionCsv(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return [];
+
+  const headerLine = lines[0];
+  const separator = headerLine.includes(';') ? ';' : headerLine.includes('\t') ? '\t' : ',';
+  const headers = splitDelimitedLine(headerLine, separator);
+
+  return lines.slice(1).map((line) => {
+    const values = splitDelimitedLine(line, separator);
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  });
+}
+
+function toAcademicSection(raw: Record<string, any>): AcademicSection | null {
+  const normalizedRecord = Object.fromEntries(
+    Object.entries(raw || {}).map(([key, value]) => [normalizeKey(key), value])
+  );
+
+  const id = String(
+    normalizedRecord.nrc ??
+    ''
+  ).trim();
+
+  const groupCode = String(
+    normalizedRecord.groupcode ??
+    raw.groupCode ??
+    ''
+  ).trim();
+
+  const moduleId = String(
+    normalizedRecord.moduleid ??
+    normalizedRecord.codigoasignatura ??
+    raw.moduleId ??
+    ''
+  ).trim();
+
+  const moduleName = String(
+    normalizedRecord.modulename ??
+    normalizedRecord.asignatura ??
+    normalizedRecord.materia ??
+    raw.moduleName ??
+    ''
+  ).trim();
+
+  // Si no tiene id, grupo o materia, asumimos que es una fila vacía o inválida
+  if (!id && !groupCode && !moduleName) {
+    return null;
+  }
+
+  const finalId = id || groupCode || `sec-imp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const finalGroupCode = groupCode || finalId;
+
+  // Attempt to parse schedule string if it's not an array
+  let schedule = Array.isArray(raw.schedule) ? raw.schedule : [];
+  if (!Array.isArray(raw.schedule) && (normalizedRecord.schedule || normalizedRecord.horario || raw.schedule)) {
+    const schedStr = String(normalizedRecord.schedule ?? normalizedRecord.horario ?? raw.schedule);
+    // very basic fallback: just put the raw string as a single dummy item if it doesn't parse well
+    // In a real app we would parse 'Lunes 08:00-10:00' here
+    try {
+      schedule = JSON.parse(schedStr);
+    } catch (e) {
+      // Ignore parse errors, keep empty array
+    }
+  }
+
+  // If there's a global room/roomType in the row, we should map it to the schedule items if they don't have one
+  const globalRoom = String(normalizedRecord.room ?? normalizedRecord.salon ?? raw.room ?? '').trim();
+  const globalRoomType = (String(normalizedRecord.roomtype ?? normalizedRecord.tiposalon ?? raw.roomType ?? 'Teórico').trim()) as any;
+
+  if (schedule.length > 0) {
+    schedule = schedule.map((s: any) => ({
+      ...s,
+      room: s.room || globalRoom,
+      roomType: s.roomType || globalRoomType
+    }));
+  } else if (globalRoom) {
+    schedule = [{ day: 'Lunes', start: '00:00', end: '00:00', room: globalRoom, roomType: globalRoomType }];
+  }
+
+  return {
+    id: finalId,
+    moduleId: moduleId || 'SIN-CODIGO',
+    facultyId: String(normalizedRecord.facultyid ?? normalizedRecord.docente ?? normalizedRecord.profesor ?? raw.facultyId ?? '').trim(),
+    capacity: normalizeNumber(normalizedRecord.capacity ?? normalizedRecord.cupo ?? raw.capacity, 0),
+    enrolled: normalizeNumber(normalizedRecord.enrolled ?? normalizedRecord.inscritos ?? raw.enrolled, 0),
+    schedule
+  };
+}
+
+function parseSectionImport(file: UploadedFile) {
+  const fileName = file.originalname.toLowerCase();
+
+  if (fileName.endsWith('.xlsx')) {
+    const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const parsed = xlsx.utils.sheet_to_json<Record<string, any>>(sheet);
+    return parsed
+      .map((record) => toAcademicSection(record))
+      .filter((record): record is AcademicSection => Boolean(record));
+  }
+
+  const text = file.buffer.toString('utf-8');
+
+  if (fileName.endsWith('.json')) {
+    const parsed = JSON.parse(text);
+    const records = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.sections) ? parsed.sections : [];
+    return records
+      .map((record) => toAcademicSection(record))
+      .filter((record): record is AcademicSection => Boolean(record));
+  }
+
+  return parseSectionCsv(text)
+    .map((record) => toAcademicSection(record))
+    .filter((record): record is AcademicSection => Boolean(record));
+}
+
 function extractUnitsFromPDF(text: string): { unitNumber: string; title: string; content: string }[] {
   const units: { unitNumber: string; title: string; content: string }[] = [];
   const seen = new Set<string>();
@@ -818,7 +941,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       // 1) Match by explicit code patterns first (more reliable than full title string matching).
       const codeIndex = new Map<string, (typeof planModules)[number]>();
       for (const module of planModules) {
-        const codeKey = normalizeKey(module.code || module.id || '');
+        const codeKey = normalizeKey(module.id || '');
         if (codeKey) codeIndex.set(codeKey, module);
       }
 
@@ -832,7 +955,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       // 2) Fallback match by searching code/title strings in the normalized text.
       for (const module of planModules) {
         if (matchedModuleIdSet.has(module.id)) continue;
-        const codeKey = normalizeKey(module.code || '');
+        const codeKey = normalizeKey(module.id || '');
         const titleKey = normalizeKey(module.title || '');
         if ((codeKey && normalizedKardexText.includes(codeKey)) || (titleKey && normalizedKardexText.includes(titleKey))) {
           matchedModuleIdSet.add(module.id);
@@ -1388,6 +1511,76 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       res.status(500).json({ error: 'Failed to update section' });
     }
   });
+
+  app.post('/api/sections', async (req, res) => {
+    try {
+      const newSection = req.body as AcademicSection;
+
+      if (!newSection?.id) {
+        res.status(400).json({ error: 'Section id is required' });
+        return;
+      }
+
+      const existingSection = db.getSections().find((section) => section.id === newSection.id);
+      if (existingSection) {
+        res.status(409).json({ error: 'Section already exists' });
+        return;
+      }
+
+      const created = await db.addSection(newSection);
+      if (created) res.status(201).json(created);
+      else res.status(500).json({ error: 'Failed to create section' });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to create section' });
+    }
+  });
+
+
+  app.delete('/api/sections/:id', async (req, res) => {
+    try {
+      const success = await db.deleteSection(req.params.id);
+      if (success) res.json({ success: true });
+      else res.status(404).json({ error: 'Section not found' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete section' });
+    }
+  });
+
+  app.post('/api/sections/import', upload.single('sectionFile'), async (req: RequestWithFile, res) => {
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    try {
+      const sectionsRecords = parseSectionImport(req.file);
+
+      if (sectionsRecords.length === 0) {
+        // Parse directly just to see what headers were found to help the user debug
+        let debugHeaders = [];
+        try {
+          if (req.file.originalname.toLowerCase().endsWith('.xlsx')) {
+            const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+            const parsed = xlsx.utils.sheet_to_json<Record<string, any>>(wb.Sheets[wb.SheetNames[0]]);
+            if (parsed.length > 0) debugHeaders = Object.keys(parsed[0]);
+          }
+        } catch (e) { }
+
+        res.status(400).json({
+          error: 'No se encontraron registros válidos. Verifica las columnas del archivo.',
+          debugHeaders
+        });
+        return;
+      }
+
+      const result = await db.importSections(sectionsRecords);
+      res.json(result);
+    } catch (error) {
+      console.error('Section import error:', error);
+      res.status(500).json({ error: 'Failed to import sections data' });
+    }
+  });
+
 
   app.get('/api/section-records', (_req, res) => {
     try {

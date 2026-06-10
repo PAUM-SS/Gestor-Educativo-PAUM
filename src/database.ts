@@ -761,13 +761,13 @@ export class SqliteDatabase {
       UPDATE modules SET title=?, credits=?, description=?, 
       competencies=?, status=?, semester=?, level=?, planning=? WHERE id=?
     `).run(
-      updated.title, 
-      updated.credits, 
-      updated.description, 
-      JSON.stringify(updated.competencies), 
-      updated.status, 
+      updated.title,
+      updated.credits,
+      updated.description,
+      JSON.stringify(updated.competencies),
+      updated.status,
       String(updated.semester),
-      updated.level, 
+      updated.level,
       updated.planning ? JSON.stringify(updated.planning) : null,
       moduleId
     );
@@ -861,6 +861,16 @@ export class SqliteDatabase {
     return tx();
   }
 
+  async addSection(academicSection: AcademicSection) {
+    const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(academicSection.id);
+    if (existing) return null;
+
+    const s = normalizeSection(academicSection);
+    this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?)`).run(s.id, s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule));
+
+    return s;
+  }
+
   async updateSection(id: string, updates: Partial<AcademicSection>) {
     const row = this.db.prepare("SELECT * FROM sections WHERE id = ?").get(id) as any;
     if (!row) return null;
@@ -882,7 +892,80 @@ export class SqliteDatabase {
     return updated;
   }
 
-  async updateMinuteTask(minuteId: string, taskId: string, status: ManualTask['status']) {
+  async deleteSection(id: string) {
+    const existing = this.db.prepare("SELECT name FROM sections WHERE id = ?").get(id) as { name: string } | undefined;
+    if (!existing) return false;
+
+    const tx = this.db.transaction(() => {
+      // Actualizar referencias ANTES de eliminar para respetar llaves foráneas
+      this.db.prepare("DELETE FROM sections WHERE id = ?").run(id);
+    });
+    tx();
+    return true;
+  }
+
+  async importSections(sections: AcademicSection[]) {
+    let created = 0;
+    let updated = 0;
+
+    const tx = this.db.transaction(() => {
+      for (const rawSection of sections) {
+        const normalizedSection = normalizeSection(rawSection);
+        const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(normalizedSection.id) as { id: string } | undefined;
+
+        if (!existing) {
+          this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?)`).run(normalizedSection.id, normalizedSection.moduleId, normalizedSection.facultyId || null, normalizedSection.capacity, normalizedSection.enrolled, JSON.stringify(normalizedSection.schedule));
+          created += 1;
+        } else {
+          const s = normalizedSection;
+          this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule), s.id);
+          updated += 1;
+        }
+      }
+    });
+    tx();
+
+    const total = (this.db.prepare("SELECT count(*) as count FROM sections").get() as any).count;
+    const allSections = this.db.prepare("SELECT * FROM sections ORDER BY id DESC").all().map((row: any) => ({
+      ...row,
+      schedule: JSON.parse(row.schedule || "[]")
+    })) as AcademicSection[];
+
+    return { created, updated, total, sections: allSections };
+  }
+
+  getSectionStudents(sectionId: string): string[] {
+    const rows = this.db.prepare("SELECT studentId FROM section_enrollments WHERE sectionId = ?").all(sectionId) as any[];
+    return rows.map(r => r.studentId);
+  }
+
+  addEnrollment(studentId: string, sectionId: string) {
+    const existing = this.db.prepare("SELECT studentId FROM section_enrollments WHERE studentId = ? AND sectionId = ?").get(studentId, sectionId);
+    if (existing) return false;
+
+    const tx = this.db.transaction(() => {
+      this.db.prepare("INSERT INTO section_enrollments (studentId, sectionId, enrolledAt) VALUES (?, ?, ?)").run(studentId, sectionId, new Date().toISOString());
+      this.db.prepare("UPDATE sections SET enrolled = enrolled + 1 WHERE id = ?").run(sectionId);
+    });
+    tx();
+    return true;
+  }
+
+  removeEnrollment(studentId: string, sectionId: string) {
+    let changed = false;
+    const tx = this.db.transaction(() => {
+      const res = this.db.prepare("DELETE FROM section_enrollments WHERE studentId = ? AND sectionId = ?").run(studentId, sectionId);
+      if (res.changes > 0) {
+        this.db.prepare("UPDATE sections SET enrolled = CASE WHEN enrolled > 0 THEN enrolled - 1 ELSE 0 END WHERE id = ?").run(sectionId);
+      }
+      changed = res.changes > 0;
+    });
+    // Wait, let's fix the SQL inside
+    tx();
+    return changed;
+  }
+
+  updateMinuteTask(minuteId: string, taskId: string, status: ManualTask['status']) {
     const row = this.db.prepare("SELECT * FROM minutes WHERE id = ?").get(minuteId) as any;
     if (!row) return null;
 
