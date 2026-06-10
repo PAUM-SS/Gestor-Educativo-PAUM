@@ -51,10 +51,8 @@ export interface StudentKardexSummary {
 export interface Module {
   id: string;
   title: string;
-  code: string;
   credits: number;
   description: string;
-  instructor: string;
   competencies: string[];
   status: 'completado' | 'en_curso' | 'pendiente';
   semester: number | string;
@@ -175,21 +173,23 @@ export interface ClassSchedule {
   day: 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado';
   start: string;
   end: string;
+  room: string;
+  roomType: 'Teórico' | 'Laboratorio' | 'Simulación' | 'Rotación' | 'Práctica' | 'Otros';
 }
 
 export interface AcademicSection {
   id: string;
   moduleId: string;
-  moduleName: string;
   facultyId: string;
-  groupCode: string;
-  room: string;
-  roomType: 'Teórico' | 'Laboratorio' | 'Simulación' | 'Rotación' | 'Práctica' | 'Otros';
   capacity: number;
   enrolled: number;
   schedule: ClassSchedule[];
-  /** Período académico al que pertenece la sección (e.g. '2024-1') */
-  semester?: string;
+}
+
+export interface SectionEnrollment {
+  studentId: string;
+  sectionId: string;
+  enrolledAt: string;
 }
 
 export interface SectionDailyRecord {
