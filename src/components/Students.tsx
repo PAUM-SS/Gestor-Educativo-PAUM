@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useRef, ChangeEvent, FormEvent, MouseEvent, useEffect } from 'react';
 import {
   Search,
