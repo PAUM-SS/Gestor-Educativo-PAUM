@@ -28,7 +28,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { curriculumService } from '../services/curriculumService';
-import { Module } from '../types';
+import { Module, PlanningUnit } from '../types';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
 import PDFPreview from './PDFPreview';
@@ -81,7 +81,6 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
     detectedUnits: { unitNumber: string; title: string; content: string }[];
     learningOutcome: string;
   } | null>(null);
- 
   
 
   // ─── Carga inicial ──────────────────────────────────────────────────────────
@@ -670,10 +669,11 @@ function PlanningSetupModal({ module, detectedUnits, learningOutcome, onClose, o
           sessions: sessions[u.unitNumber] || 18,
           completedSessions: 0,
           sessionLog: [],
+          topicsDone: [], 
+          totalTopics: 0,
           status: 'pendiente' as const,
         }))
       };
-
       const updated = await curriculumService.updateModule(module.id, { planning });
       if (updated) onConfirm(updated);
       else window.alert('No se pudo guardar la planeación.');
@@ -755,6 +755,151 @@ function PlanningSetupModal({ module, detectedUnits, learningOutcome, onClose, o
   );
 }
 
+function RegisterSessionModal({ units, onClose, onRegister }: {
+  units: PlanningUnit[];
+  onClose: () => void;
+  onRegister: (unitId: string, hours: number, topicsDone: string[]) => void;
+}) {
+  const [selectedUnitId, setSelectedUnitId] = useState(
+    units.find(u => u.status !== 'completado')?.id || units[0]?.id || ''
+  );
+  const [hours, setHours] = useState(1);
+
+  const selectedUnit = units.find(u => u.id === selectedUnitId);
+
+  // Parsear temas del contenido temático
+  const topics = selectedUnit?.activity
+    ? selectedUnit.activity.split(/(?=\d+\.\d+)/).filter(t => t.trim().length > 3)
+    : [];
+
+  // Estado de temas marcados — inicializar con los ya vistos
+  const [checkedTopics, setCheckedTopics] = useState<string[]>(
+    selectedUnit?.topicsDone || []
+  );
+
+  // Cuando cambia la unidad, resetear los temas marcados
+  const handleUnitChange = (unitId: string) => {
+    setSelectedUnitId(unitId);
+    const unit = units.find(u => u.id === unitId);
+    setCheckedTopics(unit?.topicsDone || []);
+  };
+
+  const toggleTopic = (topicKey: string) => {
+    setCheckedTopics(prev =>
+      prev.includes(topicKey)
+        ? prev.filter(t => t !== topicKey)
+        : [...prev, topicKey]
+    );
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm rounded-2xl"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 mx-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="bg-gb-primary text-white p-5 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Planeación Didáctica</p>
+            <h3 className="text-lg font-bold">Registrar Sesión</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Unidad */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              Unidad
+            </label>
+            <select
+              value={selectedUnitId}
+              onChange={e => handleUnitChange(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+            >
+              {units.filter(u => u.status !== 'completado').map(u => (
+                <option key={u.id} value={u.id}>
+                  Unidad {u.unitNumber} — {u.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Horas */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              Horas de la sesión
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={8}
+              value={hours}
+              onChange={e => setHours(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-center text-gb-secondary focus:outline-none focus:border-gb-primary"
+            />
+          </div>
+
+          {/* Temas */}
+          {topics.length > 0 && (
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                Temas vistos en esta sesión
+                <span className="ml-2 text-gb-primary">{checkedTopics.length}/{topics.length}</span>
+              </label>
+              <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-100 rounded-lg p-3 bg-slate-50">
+                {topics.map((topic, i) => {
+                  const key = `topic-${i}`;
+                  const checked = checkedTopics.includes(key);
+                  return (
+                    <label key={i} className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTopic(key)}
+                        className="mt-0.5 accent-gb-primary shrink-0"
+                      />
+                      <span className={`text-xs leading-relaxed ${checked ? 'text-gb-primary font-semibold' : 'text-slate-600'}`}>
+                        {topic.trim()}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onRegister(selectedUnitId, hours, checkedTopics)}
+            className="px-6 py-2 bg-gb-primary text-white font-bold rounded-lg text-sm shadow-lg shadow-gb-primary/20 hover:-translate-y-0.5 transition-all"
+          >
+            Registrar Sesión
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ─── PlanningModal ────────────────────────────────────────────────────────────
 
 function PlanningModal({
@@ -769,6 +914,7 @@ function PlanningModal({
   const { showToast } = useToast();
   const { execute: executeSession } = useApiError();
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isRegisteringSession, setIsRegisteringSession] = useState(false);
 
   if (!module.planning) return null;
   const p = module.planning;
@@ -949,20 +1095,36 @@ function PlanningModal({
           </p>
           <div className="flex gap-3">
             <button
+              onClick={() => setIsRegisteringSession(true)}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-gb-primary hover:bg-gb-secondary rounded-lg transition-all active:scale-95 shadow-lg shadow-gb-primary/20"
+            >
+              <Plus size={16} />
+              Registrar Sesión
+            </button>
+            <button
               onClick={() => setIsPreviewing(!isPreviewing)}
               className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-[#2D4b7C] hover:bg-slate-50 border border-[#2D4b7C]/20 rounded-lg transition-all active:scale-95"
             >
               {isPreviewing ? <ArrowLeft size={16} /> : <Eye size={16} />}
               {isPreviewing ? 'Regresar a Gestión' : 'Previsualizar PDF'}
             </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-[#2D4b7C] text-white font-bold rounded-lg text-sm shadow-xl shadow-blue-900/10 hover:-translate-y-0.5 transition-all outline-none"
-            >
+            <button onClick={onClose} className="px-6 py-2 bg-[#2D4b7C] text-white font-bold rounded-lg text-sm shadow-xl shadow-blue-900/10 hover:-translate-y-0.5 transition-all">
               Cerrar Auditoría
             </button>
           </div>
         </div>
+        {isRegisteringSession && (
+          <RegisterSessionModal
+            units={p.units}
+            onClose={() => setIsRegisteringSession(false)}
+            onRegister={async (unitId, hours, topicsDone) => {
+              const unit = p.units.find(u => u.id === unitId);
+              if (!unit) return;
+              await handleUpdateSession(unitId, unit.completedSessions + 1, unit.title);
+              setIsRegisteringSession(false);
+            }}
+          />
+        )}
       </motion.div>
     </motion.div>
   );

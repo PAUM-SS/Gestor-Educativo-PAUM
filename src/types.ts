@@ -80,6 +80,8 @@ export interface PlanningUnit {
   sessions: number;
   completedSessions: number;
   sessionLog: string[];
+  topicsDone: string[];      // IDs/índices de temas marcados como vistos
+  totalTopics: number;       // total de temas de la unidad
   status: 'pendiente' | 'en_progreso' | 'completado';
 }
 
