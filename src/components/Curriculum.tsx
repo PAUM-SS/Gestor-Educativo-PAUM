@@ -863,24 +863,6 @@ function PlanningModal({
                     "{p.learningOutcome}"
                   </p>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Competencias Genéricas</p>
-                    <div className="flex flex-wrap gap-2">
-                      {p.competencies.generic.map((c, i) => (
-                        <span key={i} className="px-2 py-1 bg-blue-50 text-gb-primary text-[10px] font-bold rounded border border-blue-100">{c}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Competencias Específicas</p>
-                    <div className="flex flex-wrap gap-2">
-                      {p.competencies.specific.map((c, i) => (
-                        <span key={i} className="px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded border border-emerald-100">{c}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Units Table */}
@@ -935,93 +917,21 @@ function PlanningModal({
                         </div>
                       </div>
 
-                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="lg:col-span-2 space-y-4">
-                          <div>
-                            <p className="text-[10px] font-bold text-gb-secondary uppercase mb-1">Actividad de Aprendizaje</p>
-                            <p className="text-xs text-slate-600 leading-relaxed">{unit.activity}</p>
-                          </div>
-                          <div className="pt-2">
-                            <p className="text-[10px] font-bold text-gb-secondary uppercase mb-2">Recursos y Materiales</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {unit.resources.map((r, i) => (
-                                <span key={i} className="text-[9px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">{r}</span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4 border-l border-slate-100 pl-6">
-                          <div>
-                            <p className="text-[10px] font-bold text-gb-secondary uppercase mb-1">Estrategias Sugeridas</p>
+                      <div className="p-6">
+                        <div>
+                          <p className="text-[10px] font-bold text-gb-secondary uppercase mb-2">Contenido Temático</p>
+                          {unit.activity ? (
                             <ul className="space-y-1">
-                              {unit.strategies.map((s, i) => (
-                                <li key={i} className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                                  <div className="w-1 h-1 rounded-full bg-gb-primary" /> {s}
+                              {unit.activity.split(/(?=\d+\.\d+)/).filter(Boolean).map((item, i) => (
+                                <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-gb-primary mt-1.5 shrink-0" />
+                                  {item.trim()}
                                 </li>
                               ))}
                             </ul>
-                          </div>
-                          <div className="pt-2 border-t border-slate-100">
-                            <p className="text-[10px] font-bold text-gb-secondary uppercase mb-2">Bitácora de Seguimiento</p>
-                            <div className="max-h-24 overflow-y-auto pr-2 custom-scrollbar">
-                              <div className="space-y-1">
-                                {unit.sessionLog.length > 0 ? (
-                                  unit.sessionLog.slice().reverse().map((date, idx) => (
-                                    <div key={idx} className="flex items-center justify-between text-[9px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100">
-                                      <span className="font-bold">Sesión {unit.sessionLog.length - idx}</span>
-                                      <span className="flex items-center gap-1"><Calendar size={10} /> {date}</span>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <p className="text-[9px] text-slate-400 italic">No hay sesiones registradas.</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4 border-l border-slate-100 pl-6 bg-blue-50/30 -m-6 p-6">
-                          <p className="text-[10px] font-bold text-gb-primary uppercase mb-3 text-center md:text-left">Esquema de Evaluación</p>
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-1">Evidencia</p>
-                              <p className="text-[10px] font-bold text-gb-secondary leading-snug">{unit.evidence}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-1">Instrumento</p>
-                              <p className="text-[10px] font-bold text-gb-secondary leading-snug">{unit.instrument}</p>
-                            </div>
-                            <div className="pt-2 flex justify-between items-center border-t border-blue-100">
-                              <span className="text-[9px] font-bold text-gb-primary">Estado:</span>
-                              <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded ${unit.status === 'completado' ? 'bg-emerald-100 text-emerald-600' :
-                                unit.status === 'en_progreso' ? 'bg-blue-100 text-gb-primary' :
-                                  'bg-slate-100 text-slate-500'
-                                }`}>
-                                {unit.status.replace('_', ' ')}
-                              </span>
-                            </div>
-
-                            {/* Botones de sesión — extraídos del JSX inline */}
-                            <div className="space-y-2">
-                              {unit.status !== 'completado' && (
-                                <button
-                                  onClick={() => handleUpdateSession(unit.id, unit.completedSessions + 1, unit.title)}
-                                  className="w-full mt-2 py-1.5 bg-gb-primary text-white text-[9px] font-bold rounded hover:bg-gb-secondary transition-colors uppercase tracking-widest shadow-sm flex items-center justify-center gap-2"
-                                >
-                                  <Plus size={12} /> Registrar Sesión Hoy
-                                </button>
-                              )}
-                              {unit.completedSessions > 0 && (
-                                <button
-                                  onClick={() => handleUpdateSession(unit.id, unit.completedSessions - 1, unit.title)}
-                                  className="w-full py-1.5 bg-white text-slate-600 border border-slate-200 text-[9px] font-bold rounded hover:bg-slate-50 transition-colors uppercase tracking-widest shadow-sm flex items-center justify-center gap-2"
-                                >
-                                  <Minus size={12} /> Deshacer Última Sesión
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">Sin contenido temático registrado.</p>
+                          )}
                         </div>
                       </div>
                     </div>
