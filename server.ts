@@ -9,7 +9,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
-import { createRequire } from 'module';
 import { PDFParse } from 'pdf-parse';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
@@ -1048,7 +1047,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       let learningOutcome = '';
       if (type === 'syllabus') {
         try {
-          const pdfLib = createRequire(import.meta.url)('pdf-parse');
+          const pdfLib = require('pdf-parse');
           const parseFn = pdfLib.PDFParse;
           const parser = new parseFn({ data: req.file.buffer });
           const parsed = await parser.getText();
