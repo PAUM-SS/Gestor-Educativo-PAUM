@@ -769,7 +769,10 @@ function RegisterSessionModal({ units, onClose, onRegister }: {
 
   // Parsear temas del contenido temático
   const topics = selectedUnit?.activity
-    ? selectedUnit.activity.split(/(?=\d+\.\d+)/).filter(t => t.trim().length > 3)
+    ? selectedUnit.activity
+  .replace(/(\d+\.\d+\.?\d*)\s+/g, '\n$1 ')
+  .split('\n')
+  .filter(t => t.trim().length > 5)
     : [];
 
   // Estado de temas marcados — inicializar con los ya vistos
@@ -915,6 +918,7 @@ function PlanningModal({
   const { execute: executeSession } = useApiError();
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRegisteringSession, setIsRegisteringSession] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<string | null>(null); // guarda el id de la unidad que se edita
 
   if (!module.planning) return null;
   const p = module.planning;
@@ -1028,11 +1032,19 @@ function PlanningModal({
                             {unit.unitNumber}
                           </div>
                           <div>
-                            <h5 className="font-bold text-gb-secondary flex items-center gap-2">
-                              {unit.title}
-                              {unit.status === 'completado' && <CircleCheckBig size={14} className="text-emerald-500" />}
-                              {unit.status === 'en_progreso' && <Clock size={14} className="text-gb-primary animate-pulse" />}
-                            </h5>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-bold text-gb-secondary flex items-center gap-2">
+                                  {unit.title}
+                                  {unit.status === 'completado' && <CircleCheckBig size={14} className="text-emerald-500" />}
+                                  {unit.status === 'en_progreso' && <Clock size={14} className="text-gb-primary animate-pulse" />}
+                                </h5>
+                                <button
+                                  onClick={() => setEditingUnit(unit.id)}
+                                  className="p-1 text-slate-400 hover:text-gb-primary hover:bg-gb-primary/5 rounded transition-colors"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">
                                 Sesiones: {unit.completedSessions} de {unit.sessions}
@@ -1068,7 +1080,11 @@ function PlanningModal({
                           <p className="text-[10px] font-bold text-gb-secondary uppercase mb-2">Contenido Temático</p>
                           {unit.activity ? (
                             <ul className="space-y-1">
-                              {unit.activity.split(/(?=\d+\.\d+)/).filter(Boolean).map((item, i) => (
+                              {unit.activity
+                                .replace(/(\d+\.\d+\.?\d*)\s+/g, '\n$1 ')
+                                .split('\n')
+                                .filter(t => t.trim().length > 5)
+                                .map((item, i) => (
                                 <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
                                   <div className="w-1.5 h-1.5 rounded-full bg-gb-primary mt-1.5 shrink-0" />
                                   {item.trim()}
@@ -1125,6 +1141,24 @@ function PlanningModal({
             }}
           />
         )}
+        {editingUnit && (
+          <EditUnitModal
+            unit={p.units.find(u => u.id === editingUnit)!}
+            onClose={() => setEditingUnit(null)}
+            onSave={async (unitId, title, activity) => {
+              const updated = await curriculumService.updateModule(module.id, {
+                planning: {
+                  ...p,
+                  units: p.units.map(u => u.id === unitId ? { ...u, title, activity } : u)
+                }
+              });
+              if (updated) {
+                onUpdate(updated);
+                setEditingUnit(null);
+              }
+            }}
+          />
+        )}
       </motion.div>
     </motion.div>
   );
@@ -1170,6 +1204,94 @@ function CurriculumReportModal({ onClose }: { onClose: () => void }) {
           <div className="scale-[0.82] origin-top transform -mb-[18%]">
             <PDFPreview type="curriculo" />
           </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function EditUnitModal({ unit, onClose, onSave }: {
+  unit: PlanningUnit;
+  onClose: () => void;
+  onSave: (unitId: string, title: string, activity: string) => void;
+}) {
+  const [title, setTitle] = useState(unit.title);
+  const [activity, setActivity] = useState(unit.activity);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(unit.id, title, activity);
+    setSaving(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm rounded-2xl"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 mx-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="bg-gb-primary text-white p-5 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Unidad {unit.unitNumber}</p>
+            <h3 className="text-lg font-bold">Editar Unidad</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              Título de la Unidad
+            </label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium text-gb-secondary focus:outline-none focus:border-gb-primary"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              Contenido Temático
+            </label>
+            <p className="text-[10px] text-slate-400 mb-2">
+              Escribe cada subtema en una línea separada, comenzando con su número (ej: 1.1 Tema...)
+            </p>
+            <textarea
+              rows={10}
+              value={activity}
+              onChange={e => setActivity(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-gb-secondary focus:outline-none focus:border-gb-primary resize-none font-mono"
+            />
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 bg-gb-primary text-white font-bold rounded-lg text-sm shadow-lg shadow-gb-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
         </div>
       </motion.div>
     </motion.div>
