@@ -532,25 +532,47 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
-    const match = line.match(/^(\d+)\.\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s\/]{1,40})(?:\s+\d+\.\d+|\s*$)/);
+    const match = line.match(/^(\d+)\.\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s\/]{1,40})(?:\s+(\d+\.\d+.*)|\s*$)/);
 
     // Caso especial: título muy corto (ej. "pH")
     const shortMatch = line.match(/^(\d+)\.\s+([a-záéíóúñA-ZÁÉÍÓÚÑ]{1,5})\s+\d+\.\d+/);
     if (shortMatch) {
       const unitNumber = shortMatch[1];
       const title = shortMatch[2].trim().toUpperCase();
+      // Capturar texto extra en la misma línea después del título
+      const afterTitle = line.slice(line.indexOf(shortMatch[2]) + shortMatch[2].length).trim();
+      
       const isExcluded = excluded.some(ex => title.includes(ex));
       if (!isExcluded && !seen.has(title)) {
         seen.add(title);
-        units.push({ unitNumber, title, content: '' });
+        const contentLines: string[] = [];
+        if (afterTitle.length > 3) contentLines.push(afterTitle); // ← agrega el texto de la misma línea
+        let k = i + 1;
+        while (k < lines.length && k < i + 20) {
+          const nextLine = lines[k];
+          if (/^\d+\.\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]/.test(nextLine)) break;
+          if (nextLine.length > 5 && 
+          !/^(McKee|Rodwell|John|Baynes|Capítulo|Sección|D\.A\.|P\(Eds\.|Elsevier|McGraw|Bioquímica\. Las|Harper\.|ilustrada|moleculares)/.test(nextLine) &&
+          !/\(20\d\d\)/.test(nextLine) &&  // filtra años de publicación
+          !/^\d+e\s/.test(nextLine)) {     // filtra "5e", "32e", etc.
+            contentLines.push(nextLine);
+          }
+          k++;
+        }
+        units.push({ 
+          unitNumber, 
+          title, 
+          content: contentLines.join(' ').slice(0,800)
+        });
       }
       i++;
-      continue;  // saltar el procesamiento normal
+      continue;
     }
 
     if (match) {
       let unitNumber = match[1];
       let title = match[2].trim();
+      let extraContent = match[3] || ''; // texto después del título en la misma línea
 
       // Unir con la siguiente línea si el título está incompleto
       let j = i + 1;
@@ -597,7 +619,7 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
         units.push({
           unitNumber,
           title,
-          content: contentLines.join(' ').slice(0, 400)
+          content: (extraContent + ' ' + contentLines.join(' ')).trim().slice(0, 800)
         });
       }
     }
@@ -1053,7 +1075,6 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
           const parsed = await parser.getText();
           const text = String(parsed?.text || '').replace(/\u0000/g, '');
           detectedUnits = extractUnitsFromPDF(text);
-          console.log('[Units content]:', detectedUnits.map(u => ({ title: u.title, contentLen: u.content.length, content: u.content.slice(0, 100) })));
           learningOutcome = extractLearningOutcome(text);
         } catch (e) {
           console.warn('[Curriculum] No se pudo extraer unidades del PDF:', e);
