@@ -145,9 +145,38 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           },
         }));
 
-        // Si es syllabus y se detectaron unidades, abrir modal de sesiones
         if (type === 'syllabus' && detectedUnits && detectedUnits.length > 0) {
-          setPendingPlanning({ module: updatedModule, detectedUnits, learningOutcome: result.learningOutcome || '' });
+          // Crear planeación automáticamente sin pedir sesiones
+          const planning = {
+            id: `planning-${updatedModule.id}`,
+            learningOutcome: result.learningOutcome || '',
+            competencies: { generic: [], specific: [] },
+            units: detectedUnits.map((u) => ({
+              id: `unit-${updatedModule.id}-${u.unitNumber}`,
+              unitNumber: u.unitNumber,
+              title: u.title,
+              content: u.content || '',
+              activity: u.content || '',
+              strategies: [],
+              resources: [],
+              evidence: '',
+              instrument: '',
+              weight: Math.floor(100 / detectedUnits.length),
+              sessions: 0,
+              completedSessions: 0,
+              sessionLog: [],
+              topicsDone: [],
+              totalTopics: 0,
+              status: 'pendiente' as const,
+            }))
+          };
+
+          const updated = await curriculumService.updateModule(updatedModule.id, { planning });
+          if (updated) {
+            setModules(prev => prev.map(m => m.id === updated.id ? updated : m));
+            setSelectedPlanningModule(updated);
+            onModuleUpdate?.();
+          }
         }
 
       } finally {
@@ -719,17 +748,6 @@ function PlanningSetupModal({ module, detectedUnits, learningOutcome, onClose, o
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Unidad {unit.unitNumber}</p>
                   <p className="text-sm font-bold text-gb-secondary truncate">{unit.title}</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Sesiones</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={sessions[unit.unitNumber]}
-                    onChange={e => setSessions(prev => ({ ...prev, [unit.unitNumber]: Number(e.target.value) }))}
-                    className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-sm font-bold text-center text-gb-secondary focus:outline-none focus:border-gb-primary"
-                  />
-                </div>
               </div>
             ))}
           </div>
@@ -1045,32 +1063,6 @@ function PlanningModal({
                                   <Pencil size={12} />
                                 </button>
                               </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">
-                                Sesiones: {unit.completedSessions} de {unit.sessions}
-                              </p>
-                              <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full ${unit.status === 'completado' ? 'bg-emerald-500' : 'bg-gb-primary'}`}
-                                  style={{ width: `${(unit.completedSessions / unit.sessions) * 100}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Estado de Avance</p>
-                            <p className={`text-[10px] font-black uppercase leading-none ${unit.status === 'completado' ? 'text-emerald-600' :
-                              unit.status === 'en_progreso' ? 'text-gb-primary' :
-                                'text-slate-400'
-                              }`}>
-                              {unit.status.replace('_', ' ')}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Ponderación</p>
-                            <p className="text-lg font-black text-gb-primary leading-none">{unit.weight}%</p>
                           </div>
                         </div>
                       </div>
