@@ -186,6 +186,8 @@ export interface AcademicSection {
   capacity: number;
   enrolled: number;
   schedule: ClassSchedule[];
+  comments?: string;
+  adjustment?: string;
 }
 
 export interface AcademicSectionWithNames extends AcademicSection {

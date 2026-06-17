@@ -14,6 +14,7 @@ import * as xlsx from 'xlsx';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
 import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent, AcademicSection } from './src/types';
+import { section } from 'motion/react-client';
 
 dotenv.config();
 
@@ -519,78 +520,81 @@ function parseSectionCsv(text: string) {
 }
 
 function toAcademicSection(raw: Record<string, any>): AcademicSection | null {
-  const normalizedRecord = Object.fromEntries(
-    Object.entries(raw || {}).map(([key, value]) => [normalizeKey(key), value])
-  );
-
-  const id = String(
-    normalizedRecord.nrc ??
-    ''
-  ).trim();
-
-  const groupCode = String(
-    normalizedRecord.groupcode ??
-    raw.groupCode ??
-    ''
-  ).trim();
-
-  const moduleId = String(
-    normalizedRecord.moduleid ??
-    normalizedRecord.codigoasignatura ??
-    raw.moduleId ??
-    ''
-  ).trim();
-
-  const moduleName = String(
-    normalizedRecord.modulename ??
-    normalizedRecord.asignatura ??
-    normalizedRecord.materia ??
-    raw.moduleName ??
-    ''
-  ).trim();
-
-  // Si no tiene id, grupo o materia, asumimos que es una fila vacía o inválida
-  if (!id && !groupCode && !moduleName) {
-    return null;
-  }
-
-  const finalId = id || groupCode || `sec-imp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  const finalGroupCode = groupCode || finalId;
-
-  // Attempt to parse schedule string if it's not an array
-  let schedule = Array.isArray(raw.schedule) ? raw.schedule : [];
-  if (!Array.isArray(raw.schedule) && (normalizedRecord.schedule || normalizedRecord.horario || raw.schedule)) {
-    const schedStr = String(normalizedRecord.schedule ?? normalizedRecord.horario ?? raw.schedule);
-    // very basic fallback: just put the raw string as a single dummy item if it doesn't parse well
-    // In a real app we would parse 'Lunes 08:00-10:00' here
-    try {
-      schedule = JSON.parse(schedStr);
-    } catch (e) {
-      // Ignore parse errors, keep empty array
+  // Convert all keys to lower case for easier matching
+  const normalizedRecord: Record<string, any> = {};
+  for (const [key, value] of Object.entries(raw || {})) {
+    if (key) {
+      // lower case and remove extra spaces
+      normalizedRecord[key.toLowerCase().trim()] = value;
     }
   }
 
-  // If there's a global room/roomType in the row, we should map it to the schedule items if they don't have one
-  const globalRoom = String(normalizedRecord.room ?? normalizedRecord.salon ?? raw.room ?? '').trim();
-  const globalRoomType = (String(normalizedRecord.roomtype ?? normalizedRecord.tiposalon ?? raw.roomType ?? 'Teórico').trim()) as any;
+  // Claves extraídas del excel pasadas a minúsculas:
+  // nrc, código, cupo, inscritos, lun, mar, mie, jue, vie, sab, edif-salón, id, comentarios, ajuste
 
-  if (schedule.length > 0) {
-    schedule = schedule.map((s: any) => ({
-      ...s,
-      room: s.room || globalRoom,
-      roomType: s.roomType || globalRoomType
-    }));
-  } else if (globalRoom) {
-    schedule = [{ day: 'Lunes', start: '00:00', end: '00:00', room: globalRoom, roomType: globalRoomType }];
+  const id = String(normalizedRecord['nrc'] ?? '').trim();
+  const moduleId = String(normalizedRecord['código'] ?? normalizedRecord['codigo'] ?? '').trim();
+
+  // Si no tiene id ni materia/módulo, es fila inválida
+  if (!id && !moduleId) {
+    return null;
+  }
+
+  const finalId = id || `sec-imp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+  const capacity = parseInt(String(normalizedRecord['cupo'] ?? '0'), 10) || 0;
+  const enrolled = parseInt(String(normalizedRecord['inscritos'] ?? '0'), 10) || 0;
+  const facultyId = String(normalizedRecord['id'] ?? '').trim();
+  const comments = normalizedRecord['comentarios'] ? String(normalizedRecord['comentarios']).trim() : undefined;
+  const adjustment = normalizedRecord['ajuste'] ? String(normalizedRecord['ajuste']).trim() : undefined;
+
+  const globalRoom = String(normalizedRecord['edif-salón'] ?? normalizedRecord['edif-salon'] ?? '').trim();
+  const schedule: any[] = [];
+
+  const daysMap: Record<string, string> = {
+    'lun': 'Lunes',
+    'mar': 'Martes',
+    'mie': 'Miércoles',
+    'jue': 'Jueves',
+    'vie': 'Viernes',
+    'sab': 'Sábado'
+  };
+
+  for (const [key, dayName] of Object.entries(daysMap)) {
+    const val = normalizedRecord[key];
+    if (val && typeof val === 'string' && val.trim() !== '') {
+      // Expected format: "11:00-12:00" or similar
+      const parts = val.trim().split('-');
+      if (parts.length === 2) {
+        schedule.push({
+          day: dayName,
+          start: parts[0].trim(),
+          end: parts[1].trim(),
+          room: globalRoom,
+          roomType: 'Teórico' // Default
+        });
+      } else {
+        // Fallback
+        schedule.push({
+          day: dayName,
+          start: val.trim(),
+          end: val.trim(),
+          room: globalRoom,
+          roomType: 'Teórico'
+        });
+      }
+    }
   }
 
   return {
     id: finalId,
     moduleId: moduleId || 'SIN-CODIGO',
-    facultyId: String(normalizedRecord.facultyid ?? normalizedRecord.docente ?? normalizedRecord.profesor ?? raw.facultyId ?? '').trim(),
-    capacity: normalizeNumber(normalizedRecord.capacity ?? normalizedRecord.cupo ?? raw.capacity, 0),
-    enrolled: normalizeNumber(normalizedRecord.enrolled ?? normalizedRecord.inscritos ?? raw.enrolled, 0),
-    schedule
+    facultyId: facultyId,
+    capacity,
+    enrolled,
+    schedule,
+    comments,
+    adjustment
   };
 }
 
@@ -601,7 +605,11 @@ function parseSectionImport(file: UploadedFile) {
     const workbook = xlsx.read(file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const parsed = xlsx.utils.sheet_to_json<Record<string, any>>(sheet);
+    // raw: false converts numbers to strings (e.g. NRC "51740" doesn't become 51740 number)
+    const parsed = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null, raw: false });
+
+    // We lowercase the headers explicitly before passing to toAcademicSection just in case,
+    // though toAcademicSection also lowercases them now.
     return parsed
       .map((record) => toAcademicSection(record))
       .filter((record): record is AcademicSection => Boolean(record));

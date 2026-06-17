@@ -26,7 +26,6 @@ import {
   MOCK_MINUTES,
   MOCK_FACULTY,
   MOCK_CLINICAL_FIELDS,
-  MOCK_SECTIONS,
   MOCK_ROTATIONS,
   MOCK_ACTIVITIES,
   MOCK_ACADEMIC_CALENDAR
@@ -249,7 +248,9 @@ export class SqliteDatabase {
         facultyId TEXT REFERENCES faculty(id) ON DELETE SET NULL,
         capacity INTEGER DEFAULT 0,
         enrolled INTEGER DEFAULT 0,
-        schedule TEXT
+        schedule TEXT,
+        comments TEXT,
+        adjustment TEXT
       );
 
       CREATE TABLE IF NOT EXISTS section_enrollments (
@@ -326,7 +327,7 @@ export class SqliteDatabase {
           minutes: MOCK_MINUTES,
           faculty: MOCK_FACULTY.map(normalizeFacultyMember),
           clinicalFields: MOCK_CLINICAL_FIELDS,
-          sections: MOCK_SECTIONS.map(normalizeSection),
+          sections: [],
           sectionDailyRecords: [],
           rotations: MOCK_ROTATIONS,
           activities: MOCK_ACTIVITIES,
@@ -364,12 +365,6 @@ export class SqliteDatabase {
         INSERT OR IGNORE INTO clinical_fields 
         (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        const insertSection = this.db.prepare(`
-        INSERT OR IGNORE INTO sections 
-        (id, moduleId, facultyId, capacity, enrolled, schedule) 
-        VALUES (?, ?, ?, ?, ?, ?)
         `);
 
         const insertSDR = this.db.prepare(`
@@ -481,19 +476,6 @@ export class SqliteDatabase {
               cf.pertinence ?? null,
               cf.lastInspection ?? null,
               cf.agreementExpiry ?? null
-            );
-          }
-        }
-
-        if (Array.isArray(data.sections)) {
-          for (const sec of data.sections) {
-            insertSection.run(
-              sec.id,
-              sec.moduleId,
-              sec.facultyId || null,
-              sec.capacity ?? 0,
-              sec.enrolled ?? 0,
-              sec.schedule ? JSON.stringify(sec.schedule) : '[]'
             );
           }
         }
@@ -885,7 +867,8 @@ export class SqliteDatabase {
     if (existing) return null;
 
     const s = normalizeSection(academicSection);
-    this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?)`).run(s.id, s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule));
+    this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule, comments, adjustment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(s.id, s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule), s.comments ?? null, s.adjustment ?? null);
 
     return s;
   }
@@ -906,7 +889,8 @@ export class SqliteDatabase {
       : updates;
     const updated = normalizeSection({ ...section, ...normalizedUpdates });
 
-    this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(updated.moduleId, updated.facultyId || null, updated.capacity, updated.enrolled, JSON.stringify(updated.schedule), id);
+    this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=?, comments=?, adjustment=? WHERE id=?`)
+      .run(updated.moduleId, updated.facultyId || null, updated.capacity, updated.enrolled, JSON.stringify(updated.schedule), updated.comments ?? null, updated.adjustment ?? null, id);
 
     return updated;
   }
@@ -930,14 +914,28 @@ export class SqliteDatabase {
     const tx = this.db.transaction(() => {
       for (const rawSection of sections) {
         const normalizedSection = normalizeSection(rawSection);
+
+        let validFacultyId = normalizedSection.facultyId || null;
+        if (validFacultyId) {
+          const facultyExists = this.db.prepare("SELECT id FROM faculty WHERE id = ?").get(validFacultyId);
+          if (!facultyExists) validFacultyId = null;
+        }
+
+        const validModuleId = normalizedSection.moduleId;
+        const moduleExists = this.db.prepare("SELECT id FROM modules WHERE id = ?").get(validModuleId);
+        if (!moduleExists) {
+          this.db.prepare(`INSERT INTO modules (id, title, credits, description, status, level) VALUES (?, ?, 0, '', 'pendiente', 'Básico')`).run(validModuleId, validModuleId);
+        }
+
         const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(normalizedSection.id) as { id: string } | undefined;
 
         if (!existing) {
-          this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule) VALUES (?, ?, ?, ?, ?, ?)`).run(normalizedSection.id, normalizedSection.moduleId, normalizedSection.facultyId || null, normalizedSection.capacity, normalizedSection.enrolled, JSON.stringify(normalizedSection.schedule));
+          this.db.prepare(`INSERT INTO sections (id, moduleId, facultyId, capacity, enrolled, schedule, comments, adjustment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(normalizedSection.id, validModuleId, validFacultyId, normalizedSection.capacity, normalizedSection.enrolled, JSON.stringify(normalizedSection.schedule), normalizedSection.comments ?? null, normalizedSection.adjustment ?? null);
           created += 1;
         } else {
-          const s = normalizedSection;
-          this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=? WHERE id=?`).run(s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule), s.id);
+          this.db.prepare(`UPDATE sections SET moduleId=?, facultyId=?, capacity=?, enrolled=?, schedule=?, comments=?, adjustment=? WHERE id=?`)
+            .run(validModuleId, validFacultyId, normalizedSection.capacity, normalizedSection.enrolled, JSON.stringify(normalizedSection.schedule), normalizedSection.comments ?? null, normalizedSection.adjustment ?? null, normalizedSection.id);
           updated += 1;
         }
       }
