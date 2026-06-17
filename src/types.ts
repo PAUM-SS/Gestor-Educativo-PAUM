@@ -188,6 +188,11 @@ export interface AcademicSection {
   schedule: ClassSchedule[];
 }
 
+export interface AcademicSectionWithNames extends AcademicSection {
+  moduleName: string;
+  facultyName: string;
+}
+
 export interface SectionEnrollment {
   studentId: string;
   sectionId: string;

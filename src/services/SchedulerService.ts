@@ -1,4 +1,4 @@
-import { AcademicSection, ClassSchedule } from '../types';
+import { AcademicSection, AcademicSectionWithNames } from '../types';
 
 type ClassImportResult = {
   created: number;
@@ -9,14 +9,15 @@ type ClassImportResult = {
 
 export const SchedulerService = {
 
-  getClasses: async (): Promise<AcademicSection[]> => {
+  getClasses: async (): Promise<AcademicSectionWithNames[]> => {
     const response = await fetch('/api/sections');
-
     if (!response.ok) throw new Error('Error al cargar secciones');
-    return await response.json();
+    const data = await response.json();
+    console.log(data);
+    return data;
   },
 
-  addClass: async (academicSection: AcademicSection): Promise<AcademicSection | null> => {
+  addClass: async (academicSection: AcademicSection): Promise<AcademicSectionWithNames | null> => {
     const response = await fetch('/api/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -27,7 +28,7 @@ export const SchedulerService = {
     return await response.json();
   },
 
-  updateClass: async (id: string, updates: Partial<AcademicSection>): Promise<AcademicSection | null> => {
+  updateClass: async (id: string, updates: Partial<AcademicSection>): Promise<AcademicSectionWithNames | null> => {
     const response = await fetch(`/api/sections/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

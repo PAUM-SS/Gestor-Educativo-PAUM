@@ -16,7 +16,8 @@ import {
   Activity,
   ClinicalField,
   SectionDailyRecord,
-  AcademicEvent
+  AcademicEvent,
+  AcademicSectionWithNames
 } from './types';
 
 import {
@@ -619,13 +620,31 @@ export class SqliteDatabase {
     return this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
   }
 
-  getSections(): AcademicSection[] {
-    return this.db.prepare("SELECT * FROM sections").all().map((row: any) => ({
-      ...row,
-      // facultyId puede ser NULL tras un ON DELETE SET NULL; se normaliza a string vacío
+  getSections(): AcademicSectionWithNames[] {
+    return this.db.prepare(`
+    SELECT
+      s.id,
+      s.moduleId,
+      s.facultyId,
+      s.capacity,
+      s.enrolled,
+      s.schedule,
+      COALESCE(m.title, s.moduleId, 'Módulo desconocido') AS moduleName,
+      COALESCE(f.name, 'Sin asignar')                     AS facultyName
+    FROM sections s
+    LEFT JOIN modules m ON m.id = s.moduleId
+    LEFT JOIN faculty f ON f.id = s.facultyId
+    ORDER BY s.id ASC
+  `).all().map((row: any) => ({
+      id: row.id,
+      moduleId: row.moduleId ?? '',
       facultyId: row.facultyId ?? '',
-      schedule: this.parseJSON(row.schedule, [])
-    })) as AcademicSection[];
+      capacity: row.capacity ?? 0,
+      enrolled: row.enrolled ?? 0,
+      schedule: this.parseJSON(row.schedule, []),
+      moduleName: row.moduleName,
+      facultyName: row.facultyName,
+    })) as AcademicSectionWithNames[];
   }
 
   getSectionDailyRecords(): SectionDailyRecord[] {
@@ -893,7 +912,7 @@ export class SqliteDatabase {
   }
 
   async deleteSection(id: string) {
-    const existing = this.db.prepare("SELECT name FROM sections WHERE id = ?").get(id) as { name: string } | undefined;
+    const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(id) as { id: string } | undefined;
     if (!existing) return false;
 
     const tx = this.db.transaction(() => {
