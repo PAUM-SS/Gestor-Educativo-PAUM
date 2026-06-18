@@ -81,7 +81,7 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
     detectedUnits: { unitNumber: string; title: string; content: string }[];
     learningOutcome: string;
   } | null>(null);
-  
+  const [isImporting, setIsImporting] = useState(false);
 
   // ─── Carga inicial ──────────────────────────────────────────────────────────
 
@@ -185,6 +185,31 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
     }
   };
 
+  const handleCurriculumImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      window.alert('Solo se permiten archivos .xlsx');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const result = await curriculumService.importCurriculum(file);
+      if (result) {
+        setModules(result.modules);
+        setModuleFiles(buildModuleFilesState(result.modules));
+        window.alert(`Importación exitosa: ${result.created} módulos creados, ${result.updated} actualizados.`);
+      } else {
+        window.alert('No se pudo importar el plan de estudios.');
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // ─── Datos derivados ────────────────────────────────────────────────────────
 
   const groupedModules = useMemo(() => {
@@ -224,6 +249,13 @@ export default function Curriculum({ onModuleUpdate }: { onModuleUpdate?: () => 
           <Layers size={18} />
           Reporte Retícula
         </button>
+
+        <label className={`cursor-pointer flex items-center gap-2 bg-white border border-gb-primary text-gb-primary px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-50 transition-all active:scale-95 shadow-sm ${isImporting ? 'pointer-events-none opacity-50' : ''}`}>
+          <Upload size={18} />
+          {isImporting ? 'Importando...' : 'Importar Plan de Estudios'}
+          <input type="file" className="hidden" accept=".xlsx" onChange={handleCurriculumImport} />
+        </label>
+
       </header>
 
       <InfoPanel

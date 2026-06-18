@@ -15,6 +15,7 @@ import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
 import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent, AcademicSection } from './src/types';
 import { section } from 'motion/react-client';
+import * as XLSX from 'xlsx';
 
 dotenv.config();
 
@@ -482,6 +483,51 @@ function toFacultyMember(raw: Record<string, any>): FacultyMember | null {
     ),
     permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
   };
+}
+
+// Mapa de Nivel conocido por código (basado en la clasificación actual del coordinador)
+const PAUM_LEVEL_BY_CODE: Record<string, Module['level']> = {
+  'PAUS 001': 'Básico', 'PAUS 002': 'Básico', 'PAUS 003': 'Formativo',
+  'PAUS 004': 'Formativo', 'PAUS 005': 'Básico', 'FGUS 002': 'Minerva',
+  'FGUS 004': 'Minerva', 'PAUS 006': 'Básico', 'PAUS 007': 'Básico',
+  'PAUS 009': 'Formativo', 'PAUS 011': 'Formativo', 'PAUS 258': 'Formativo',
+  'FGUS 001': 'Minerva', 'FGUS 005': 'Minerva', 'PAUS 008': 'Formativo',
+  'PAUS 250': 'Formativo', 'PAUS 251': 'Formativo', 'PAUS 252': 'Formativo',
+  'PAUS 253': 'Formativo', 'PAUS 255': 'Formativo', 'PAUS 256': 'Formativo',
+  'PAUS 010': 'Básico', 'PAUS 254': 'Formativo', 'PAUS 257': 'Formativo',
+  'PAUS 259': 'Formativo', 'PAUS 260': 'Básico', 'PAUS 261': 'Formativo',
+  'PAUS 262': 'Formativo', 'PPUM 101': 'Práctica/Servicio', 'SSUM 100': 'Práctica/Servicio',
+};
+
+function inferModuleLevel(code: string): Module['level'] {
+  const known = PAUM_LEVEL_BY_CODE[code.trim()];
+  if (known) return known;
+  // Fallback por prefijo, para códigos nuevos que aún no se hayan visto
+  const prefix = code.trim().split(' ')[0].toUpperCase();
+  if (prefix.startsWith('FGUS') || prefix.startsWith('FGUM')) return 'Minerva';
+  if (prefix.startsWith('PPUM') || prefix.startsWith('SSUM')) return 'Práctica/Servicio';
+  return 'Formativo';
+}
+
+function parseCurriculumImport(file: UploadedFile) {
+  const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+  const sheet = workbook.Sheets['Base Asignatura'];
+  if (!sheet) return [];
+
+  const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+  return rows
+    .filter(row => String(row['Clave PA'] || '').trim().toUpperCase() === 'PAU')
+    .map(row => {
+      const code = String(row['Código'] || '').trim();
+      const title = String(row['Asignatura'] || '').trim();
+      const credits = Number(row['Créd']) || 0;
+      const rawSemester = String(row['Semestre'] || '').trim().toUpperCase();
+      const semester = rawSemester === 'SS' ? 'Servicio' : Number(row['Semestre']);
+
+      return { code, title, credits, semester, level: inferModuleLevel(code) };
+    })
+    .filter(m => m.code && m.title);
 }
 
 function parseFacultyImport(file: UploadedFile) {
@@ -1145,6 +1191,33 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
       res.status(500).json({ error: 'Failed to update module' });
     }
   });
+
+  app.post('/api/curriculum/import', upload.single('curriculumFile'), async (req: RequestWithFile, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No file uploaded' });
+    return;
+  }
+
+  if (!req.file.originalname.toLowerCase().endsWith('.xlsx')) {
+    res.status(400).json({ error: 'Solo se permiten archivos .xlsx' });
+    return;
+  }
+
+  try {
+    const rows = parseCurriculumImport(req.file);
+
+    if (rows.length === 0) {
+      res.status(400).json({ error: 'No se encontraron módulos PAUM en el archivo. Verifica que la hoja se llame "Base Asignatura" y que la columna "Clave PA" tenga el valor "PAU".' });
+      return;
+    }
+
+    const result = await db.importCurriculum(rows);
+    res.json(result);
+  } catch (error) {
+    console.error('Curriculum import error:', error);
+    res.status(500).json({ error: 'Error al importar el plan de estudios' });
+  }
+});
 
   app.put('/api/curriculum/:moduleId/units/:unitId', async (req, res) => {
     try {

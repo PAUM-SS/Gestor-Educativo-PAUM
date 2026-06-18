@@ -907,6 +907,35 @@ export class SqliteDatabase {
     return { created, updated, total, faculty };
   }
 
+  async importCurriculum(rows: { code: string; title: string; credits: number; semester: number | string; level: Module['level'] }[]) {
+  let created = 0;
+  let updated = 0;
+
+  const tx = this.db.transaction(() => {
+    for (const row of rows) {
+      const existing = this.db.prepare("SELECT id FROM modules WHERE code = ?").get(row.code) as { id: string } | undefined;
+
+      if (!existing) {
+        const id = row.code;
+        this.db.prepare(`
+          INSERT INTO modules (id, title, code, credits, description, instructor, competencies, status, semester, level)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(id, row.title, row.code, row.credits, '', 'Sin asignar', '[]', 'pendiente', String(row.semester), row.level);
+        created += 1;
+      } else {
+        this.db.prepare(`
+          UPDATE modules SET title=?, credits=?, semester=?, level=? WHERE id=?
+        `).run(row.title, row.credits, String(row.semester), row.level, existing.id);
+        updated += 1;
+      }
+    }
+  });
+  tx();
+
+  const total = (this.db.prepare("SELECT count(*) as count FROM modules").get() as any).count;
+  return { created, updated, total, modules: this.getModules() };
+}
+
   async addStudent(student: Student) {
     const existing = this.db.prepare("SELECT id FROM students WHERE id = ?").get(student.id);
     if (existing) return null;
