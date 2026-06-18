@@ -629,6 +629,68 @@ export class SqliteDatabase {
     })) as AcademicSectionWithNames[];
   }
 
+  getExportSections(): any[] {
+    const rows = this.db.prepare(`
+      SELECT 
+        s.id as nrc,
+        m.semester as semester,
+        s.moduleId as code,
+        m.title as moduleName,
+        s.capacity as capacity,
+        s.enrolled as enrolled,
+        s.schedule as schedule,
+        s.facultyId as facultyId,
+        f.name as facultyName,
+        s.comments as comments,
+        s.adjustment as adjustment
+      FROM sections s
+      LEFT JOIN modules m ON s.moduleId = m.id
+      LEFT JOIN faculty f ON s.facultyId = f.id
+      ORDER BY s.id ASC
+    `).all() as any[];
+
+    const daysMap: Record<string, string> = {
+      'Lunes': 'Lun', 'Martes': 'Mar', 'Miércoles': 'Mie', 'Jueves': 'Jue', 'Viernes': 'Vie', 'Sábado': 'Sab'
+    };
+
+    return rows.map((row, index) => {
+      const scheduleCols: Record<string, string> = { Lun: '', Mar: '', Mie: '', Jue: '', Vie: '', Sab: '' };
+      let globalRoom = '';
+
+      const parsedSchedule = this.parseJSON(row.schedule, []);
+      parsedSchedule.forEach((slot: any) => {
+        const shortDay = daysMap[slot.day];
+        if (shortDay) {
+          scheduleCols[shortDay] = `${slot.start}-${slot.end}`;
+        }
+        if (slot.room && !globalRoom) {
+          globalRoom = slot.room;
+        }
+      });
+
+      return {
+        'No.': index + 1,
+        'NRC': row.nrc,
+        'Semestre': row.semester || '',
+        'Código': row.code,
+        'Asignatura': row.moduleName || '',
+        'Cupo': row.capacity,
+        'Inscritos': row.enrolled,
+        'Lun': scheduleCols.Lun,
+        'Mar': scheduleCols.Mar,
+        'Mie': scheduleCols.Mie,
+        'Jue': scheduleCols.Jue,
+        'Vie': scheduleCols.Vie,
+        'Sab': scheduleCols.Sab,
+        'Edif-Salón': globalRoom,
+        'ID Profesor': row.facultyId || '',
+        'Docente': row.facultyName || 'Sin asignar',
+        'Comentarios': row.comments || '',
+        'Ajuste': row.adjustment || ''
+      };
+    });
+  }
+
   getSectionDailyRecords(): SectionDailyRecord[] {
     return this.db.prepare("SELECT * FROM section_daily_records ORDER BY date DESC").all().map((row: any) => ({
       ...row,

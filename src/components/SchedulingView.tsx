@@ -32,6 +32,7 @@ export default function SchedulingView() {
     const { loading: isSaving, execute: executeSave } = useApiError();
     const { loading: isDeleting, execute: executeDelete } = useApiError();
     const { loading: isImporting, execute: executeImport } = useApiError();
+    const { loading: isExporting, execute: executeExport } = useApiError();
 
     const [classes, setClasses] = useState<AcademicSectionWithNames[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -179,9 +180,22 @@ export default function SchedulingView() {
         }
     };
 
-    const handleExport = () => {
-        // TODO: implementar exportación CSV/Excel
-        showToast('Exportación pendiente de implementación.', 'info');
+    const handleExport = async () => {
+        const result = await executeExport(
+            () => SchedulerService.exportSections(),
+            'No se pudo exportar la base de datos de clases.'
+        );
+        if (result) {
+            const url = window.URL.createObjectURL(result);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'programacion_academica.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            showToast('Exportación exitosa', 'success');
+        }
     };
 
     return (
@@ -360,10 +374,13 @@ export default function SchedulingView() {
             <div className="flex justify-end pt-2">
                 <button
                     onClick={handleExport}
-                    className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all shadow-sm"
+                    disabled={isExporting}
+                    className={`flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all shadow-sm ${isExporting ? 'opacity-60' : ''}`}
                 >
-                    <DownloadCloud size={18} />
-                    Exportar Base
+                    {isExporting
+                        ? <><Loader2 size={18} className="animate-spin text-gb-primary" />Exportando...</>
+                        : <><DownloadCloud size={18} className="text-gb-primary" />Exportar Base</>
+                    }
                 </button>
             </div>
 

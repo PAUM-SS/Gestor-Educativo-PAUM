@@ -56,5 +56,11 @@ export const SchedulerService = {
 
     if (!response.ok) throw new Error('Error al importar secciones');
     return await response.json();
+  },
+
+  exportSections: async (): Promise<Blob> => {
+    const response = await fetch('/api/sections/export');
+    if (!response.ok) throw new Error('Error al exportar secciones');
+    return await response.blob();
   }
 };

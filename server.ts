@@ -529,9 +529,6 @@ function toAcademicSection(raw: Record<string, any>): AcademicSection | null {
     }
   }
 
-  // Claves extraídas del excel pasadas a minúsculas:
-  // nrc, código, cupo, inscritos, lun, mar, mie, jue, vie, sab, edif-salón, id, comentarios, ajuste
-
   const id = String(normalizedRecord['nrc'] ?? '').trim();
   const moduleId = String(normalizedRecord['código'] ?? normalizedRecord['codigo'] ?? '').trim();
 
@@ -1606,6 +1603,23 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
     } catch (error) {
       console.error('Section import error:', error);
       res.status(500).json({ error: 'Failed to import sections data' });
+    }
+  });
+
+  app.get('/api/sections/export', async (_req, res) => {
+    try {
+      const rows = db.getExportSections();
+
+      const workbook = xlsx.utils.book_new();
+      const worksheet = xlsx.utils.json_to_sheet(rows);
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Programación Académica');
+      const buffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=programacion_academica.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error('Section export error:', error);
+      res.status(500).json({ error: 'Failed to export sections data' });
     }
   });
 
