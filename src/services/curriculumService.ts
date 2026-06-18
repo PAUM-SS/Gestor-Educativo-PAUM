@@ -1,6 +1,25 @@
 import { Module, PlanningUnit } from '../types';
 
 export const curriculumService = {
+
+  importCurriculum: async (file: File): Promise<{ created: number; updated: number; total: number; modules: Module[] } | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('curriculumFile', file);
+
+      const response = await fetch('/api/curriculum/import', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Error importing curriculum');
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to import curriculum:', error);
+      return null;
+    }
+  },
+
   getModules: async (): Promise<Module[]> => {
     const response = await fetch('/api/curriculum');
 
