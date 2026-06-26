@@ -14,15 +14,20 @@ import {
     Clock,
     MapPin,
     Users,
-    Loader2
+    Loader2,
+    ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
-import { ClassSchedule, AcademicSectionWithNames } from '../types';
+import { ClassSchedule, AcademicSectionWithNames, Module, FacultyMember } from '../types';
 import { SchedulerService } from '../services/SchedulerService';
+import { curriculumService } from '../services/curriculumService';
+import { facultyService } from '../services/facultyService';
 import { ConfirmModal } from './ConfirmModal';
+import QuickAddFacultyModal from './QuickAddFacultyModal';
+import QuickAddModuleModal from './QuickAddModuleModal';
 
 export default function SchedulingView() {
     const { showToast } = useToast();
@@ -42,6 +47,29 @@ export default function SchedulingView() {
     const [editForm, setEditForm] = useState<Partial<AcademicSectionWithNames>>({});
     const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
+    // --- Catálogos para selects ---
+    const [modulesCatalog, setModulesCatalog] = useState<Module[]>([]);
+    const [facultyCatalog, setFacultyCatalog] = useState<FacultyMember[]>([]);
+    const [showQuickAddFaculty, setShowQuickAddFaculty] = useState(false);
+    const [showQuickAddModule, setShowQuickAddModule] = useState(false);
+
+    // --- Horario del modal de agregar ---
+    type DayKey = ClassSchedule['day'];
+    const ALL_DAYS: DayKey[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const ROOM_TYPES: ClassSchedule['roomType'][] = ['Teórico', 'Laboratorio', 'Simulación', 'Rotación', 'Práctica', 'Otros'];
+
+    type DaySlotDraft = {
+        enabled: boolean;
+        start: string;
+        end: string;
+        room: string;
+        roomType: ClassSchedule['roomType'];
+    };
+    const buildEmptyDays = (): Record<DayKey, DaySlotDraft> =>
+        Object.fromEntries(ALL_DAYS.map(d => [d, { enabled: false, start: '07:00', end: '09:00', room: '', roomType: 'Teórico' }])) as Record<DayKey, DaySlotDraft>;
+
+    const [scheduleDraft, setScheduleDraft] = useState<Record<DayKey, DaySlotDraft>>(buildEmptyDays());
+
     const importInputRef = useRef<HTMLInputElement>(null);
 
     const loadClasses = async () => {
@@ -52,16 +80,45 @@ export default function SchedulingView() {
         if (result) setClasses(result);
     };
 
+    const loadCatalogs = async () => {
+        const [mods, fac] = await Promise.all([
+            curriculumService.getModules().catch(() => [] as Module[]),
+            facultyService.getFaculty().catch(() => [] as FacultyMember[]),
+        ]);
+        setModulesCatalog(mods);
+        setFacultyCatalog(fac);
+    };
+
     useEffect(() => {
         void loadClasses();
+        void loadCatalogs();
     }, []);
 
     // --- Helpers ---
+    // Normaliza el formato de tiempo a HH:MM para compatibilidad con time inputs
+    const normalizeTimeFormat = (timeStr: string): string => {
+        if (!timeStr) return '';
+        // Si ya está en formato HH:MM, devolver como está
+        if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr;
+        // Si es HH:MM:SS, quitar segundos
+        if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr.substring(0, 5);
+        // Si es H:MM, convertir a HH:MM
+        if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+            const [h, m] = timeStr.split(':');
+            return `${h.padStart(2, '0')}:${m}`;
+        }
+        // Si solo es un número (hora sin minutos), agregar :00
+        if (/^\d{1,2}$/.test(timeStr.trim())) {
+            return `${timeStr.trim().padStart(2, '0')}:00`;
+        }
+        return timeStr;
+    };
+
     const formatSchedule = (schedules: ClassSchedule[]) => {
         if (!schedules || schedules.length === 0) return 'Sin horario asignado';
         // Mapea a las primeras 3 letras (ej. Lun, Mar)
         const days = schedules.map(s => s.day.substring(0, 3)).join(', ');
-        const time = `${schedules[0].start} - ${schedules[0].end}`;
+        const time = `${normalizeTimeFormat(schedules[0].start)} - ${normalizeTimeFormat(schedules[0].end)}`;
         return `${days} | ${time}`;
     };
 
@@ -90,17 +147,34 @@ export default function SchedulingView() {
         [classes, searchTerm]
     );
 
+    // --- Helpers: schedule draft → ClassSchedule[] ---
+    const buildScheduleFromDraft = (draft: Record<DayKey, DaySlotDraft>): ClassSchedule[] =>
+        ALL_DAYS.filter(d => draft[d].enabled).map(d => ({
+            day: d,
+            start: draft[d].start,
+            end: draft[d].end,
+            room: draft[d].room,
+            roomType: draft[d].roomType,
+        }));
+
+    const updateDay = (day: DayKey, patch: Partial<DaySlotDraft>) =>
+        setScheduleDraft(prev => ({ ...prev, [day]: { ...prev[day], ...patch } }));
+
     // --- Handlers ---
     const handleAddClass = async () => {
+        const schedule = buildScheduleFromDraft(scheduleDraft);
+        const selectedModule = modulesCatalog.find(m => m.id === editForm.moduleId);
+        const selectedFaculty = facultyCatalog.find(f => f.id === editForm.facultyId);
+
         const newClass: AcademicSectionWithNames = {
             id: editForm.id?.trim() || `sec-${Date.now()}`,
             moduleId: editForm.moduleId?.trim() || '',
             facultyId: editForm.facultyId?.trim() || '',
-            moduleName: editForm.moduleName || editForm.moduleId || '',
-            facultyName: editForm.facultyName || editForm.facultyId || 'Sin asignar',
+            moduleName: selectedModule?.title || editForm.moduleName || '',
+            facultyName: selectedFaculty?.name || editForm.facultyName || 'Sin asignar',
             capacity: editForm.capacity || 0,
             enrolled: 0,
-            schedule: editForm.schedule || [],
+            schedule,
         };
 
         const created = await executeAdd(
@@ -112,6 +186,7 @@ export default function SchedulingView() {
             setClasses(prev => [created, ...prev]);
             setShowAddModal(false);
             setEditForm({});
+            setScheduleDraft(buildEmptyDays());
             showToast('Clase registrada correctamente', 'success');
         }
     };
@@ -119,14 +194,36 @@ export default function SchedulingView() {
     const handleEditClick = () => {
         if (!selectedClass) return;
         setEditForm({ ...selectedClass });
+
+        // Populate scheduleDraft
+        const draft = buildEmptyDays();
+        if (selectedClass.schedule && selectedClass.schedule.length > 0) {
+            selectedClass.schedule.forEach(slot => {
+                const normalizedStart = normalizeTimeFormat(slot.start);
+                const normalizedEnd = normalizeTimeFormat(slot.end);
+                console.log(`[EDIT] Día: ${slot.day}, Start: ${slot.start} → ${normalizedStart}, End: ${slot.end} → ${normalizedEnd}`);
+                draft[slot.day] = {
+                    enabled: true,
+                    start: normalizedStart,
+                    end: normalizedEnd,
+                    room: slot.room || '',
+                    roomType: slot.roomType || 'Teórico'
+                };
+            });
+        }
+        console.log('[EDIT] scheduleDraft actualizado:', draft);
+        setScheduleDraft(draft);
         setIsEditing(true);
     };
 
     const handleSaveEdit = async () => {
         if (!editForm.id || !selectedClass) return;
 
+        const schedule = buildScheduleFromDraft(scheduleDraft);
+        const updatedForm = { ...editForm, schedule };
+
         const updated = await executeSave(
-            () => SchedulerService.updateClass(editForm.id!, editForm),
+            () => SchedulerService.updateClass(updatedForm.id!, updatedForm),
             'No se pudo actualizar la clase.'
         );
 
@@ -486,44 +583,81 @@ export default function SchedulingView() {
                                 ) : (
                                     // Vista de edición
                                     <div className="space-y-4">
+                                        {/* NRC */}
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">NRC de Sección</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ej. 51740"
+                                                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm font-mono"
+                                                value={editForm.id || ''}
+                                                onChange={e => setEditForm({ ...editForm, id: e.target.value })}
+                                            />
+                                        </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Nombre del Módulo</label>
-                                                <input
-                                                    type="text"
-                                                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm"
-                                                    value={editForm.moduleName || ''}
-                                                    onChange={e => setEditForm({ ...editForm, moduleName: e.target.value })}
-                                                />
+                                            {/* --- Módulo Asociado (full width) --- */}
+                                            <div className="col-span-2">
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Módulo Asociado</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowQuickAddModule(true)}
+                                                        className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors px-2 py-0.5 rounded-lg hover:bg-indigo-50"
+                                                    >
+                                                        <Plus size={11} /> Nuevo módulo
+                                                    </button>
+                                                </div>
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full h-11 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm appearance-none"
+                                                        value={editForm.moduleId || ''}
+                                                        onChange={e => {
+                                                            const mod = modulesCatalog.find(m => m.id === e.target.value);
+                                                            setEditForm({ ...editForm, moduleId: e.target.value, moduleName: mod?.title || '' });
+                                                        }}
+                                                    >
+                                                        <option value="">— Selecciona un módulo —</option>
+                                                        {modulesCatalog.map(m => (
+                                                            <option key={m.id} value={m.id}>
+                                                                {m.id} · {m.title}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                </div>
                                             </div>
+
+                                            {/* --- Docente --- */}
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Nombre del Docente</label>
-                                                <input
-                                                    type="text"
-                                                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm"
-                                                    value={editForm.facultyName || ''}
-                                                    onChange={e => setEditForm({ ...editForm, facultyName: e.target.value })}
-                                                    placeholder="Sin asignar"
-                                                />
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Docente</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowQuickAddFaculty(true)}
+                                                        className="flex items-center gap-1 text-[10px] font-bold text-gb-primary hover:text-gb-primary/80 transition-colors px-2 py-0.5 rounded-lg hover:bg-blue-50"
+                                                    >
+                                                        <Plus size={11} /> Nuevo docente
+                                                    </button>
+                                                </div>
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full h-11 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm appearance-none"
+                                                        value={editForm.facultyId || ''}
+                                                        onChange={e => {
+                                                            const fac = facultyCatalog.find(f => f.id === e.target.value);
+                                                            setEditForm({ ...editForm, facultyId: e.target.value, facultyName: fac?.name || '' });
+                                                        }}
+                                                    >
+                                                        <option value="">— Sin asignar —</option>
+                                                        {facultyCatalog.map(f => (
+                                                            <option key={f.id} value={f.id}>{f.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">ID del Módulo</label>
-                                                <input
-                                                    type="text"
-                                                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm font-mono"
-                                                    value={editForm.moduleId || ''}
-                                                    onChange={e => setEditForm({ ...editForm, moduleId: e.target.value })}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">ID del Docente</label>
-                                                <input
-                                                    type="text"
-                                                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm font-mono"
-                                                    value={editForm.facultyId || ''}
-                                                    onChange={e => setEditForm({ ...editForm, facultyId: e.target.value })}
-                                                />
-                                            </div>
+
+                                            {/* --- Cupo --- */}
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Cupo Máximo</label>
                                                 <input
@@ -535,9 +669,76 @@ export default function SchedulingView() {
                                                 />
                                             </div>
                                         </div>
-                                        <p className="text-xs text-slate-400 italic">
-                                            La edición de horarios por día se implementará en la siguiente fase.
-                                        </p>
+                                        {/* --- Editor de Horario --- */}
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-3 mt-4 border-t border-slate-100 pt-4">
+                                                <Clock size={15} className="text-amber-500" />
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Horario de Clases</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {ALL_DAYS.map(day => {
+                                                    const slot = scheduleDraft[day];
+                                                    console.log(`[EDIT PANEL] ${day}:`, { start: slot.start, startNormalized: normalizeTimeFormat(slot.start), end: slot.end, endNormalized: normalizeTimeFormat(slot.end), enabled: slot.enabled });
+                                                    return (
+                                                        <div
+                                                            key={day}
+                                                            className={`rounded-xl border transition-all ${slot.enabled
+                                                                ? 'border-amber-200 bg-amber-50'
+                                                                : 'border-slate-100 bg-slate-50'
+                                                                }`}
+                                                        >
+                                                            {/* Row header: checkbox + día */}
+                                                            <label className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={slot.enabled}
+                                                                    onChange={e => updateDay(day, { enabled: e.target.checked })}
+                                                                    className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                                                                />
+                                                                <span className={`text-sm font-bold w-20 ${slot.enabled ? 'text-amber-800' : 'text-slate-400'
+                                                                    }`}>{day}</span>
+
+                                                                {/* Hora inicio / fin — sólo visible si activo */}
+                                                                {slot.enabled && (
+                                                                    <div className="flex items-center gap-2 flex-1 flex-wrap">
+                                                                        <input
+                                                                            type="time"
+                                                                            value={normalizeTimeFormat(slot.start)}
+                                                                            onChange={e => updateDay(day, { start: e.target.value })}
+                                                                            className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                        />
+                                                                        <span className="text-xs text-slate-400">–</span>
+                                                                        <input
+                                                                            type="time"
+                                                                            value={normalizeTimeFormat(slot.end)}
+                                                                            onChange={e => updateDay(day, { end: e.target.value })}
+                                                                            className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                        />
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Salón"
+                                                                            value={slot.room}
+                                                                            onChange={e => updateDay(day, { room: e.target.value })}
+                                                                            className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs flex-1 min-w-[80px] focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                        />
+                                                                        <div className="relative">
+                                                                            <select
+                                                                                value={slot.roomType}
+                                                                                onChange={e => updateDay(day, { roomType: e.target.value as ClassSchedule['roomType'] })}
+                                                                                className="h-8 pl-2 pr-6 bg-white border border-amber-200 rounded-lg text-xs appearance-none focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                            >
+                                                                                {ROOM_TYPES.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                                                            </select>
+                                                                            <ChevronDown size={10} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -596,12 +797,25 @@ export default function SchedulingView() {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl"
+                            className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh]"
                         >
-                            <h3 className="text-xl font-bold text-slate-900 mb-4">Registrar Nueva Sección</h3>
-                            <div className="space-y-4 mb-6">
+                            {/* Header */}
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex items-center justify-between">
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">NRC / ID de Sección</label>
+                                    <h3 className="text-lg font-bold text-slate-900">Registrar Nueva Sección</h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Completa los datos de la sección académica</p>
+                                </div>
+                                <button onClick={() => { setShowAddModal(false); setEditForm({}); setScheduleDraft(buildEmptyDays()); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Body */}
+                            <div className="overflow-y-auto flex-1 p-6 space-y-5">
+
+                                {/* NRC */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">NRC de Sección</label>
                                     <input
                                         type="text"
                                         placeholder="Ej. 51740"
@@ -610,37 +824,65 @@ export default function SchedulingView() {
                                         onChange={e => setEditForm({ ...editForm, id: e.target.value })}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Nombre del Módulo</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Ej. Bioquímica Médica"
-                                            className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm"
-                                            value={editForm.moduleName || ''}
-                                            onChange={e => setEditForm({ ...editForm, moduleName: e.target.value })}
-                                        />
+
+                                {/* --- Módulo Asociado (full width) --- */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Módulo Asociado</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowQuickAddModule(true)}
+                                            className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors px-2 py-0.5 rounded-lg hover:bg-indigo-50"
+                                        >
+                                            <Plus size={11} /> Nuevo módulo
+                                        </button>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">ID del Módulo</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Ej. paus-001"
-                                            className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm font-mono"
+                                    <div className="relative">
+                                        <select
+                                            className="w-full h-11 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm appearance-none"
                                             value={editForm.moduleId || ''}
                                             onChange={e => setEditForm({ ...editForm, moduleId: e.target.value })}
-                                        />
+                                        >
+                                            <option value="">— Selecciona un módulo —</option>
+                                            {modulesCatalog.map(m => (
+                                                <option key={m.id} value={m.id}>
+                                                    {m.id} · {m.title}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* --- Docente --- */}
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Nombre del Docente</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Ej. Ramírez Torres Carlos"
-                                            className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm"
-                                            value={editForm.facultyName || ''}
-                                            onChange={e => setEditForm({ ...editForm, facultyName: e.target.value })}
-                                        />
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Docente</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowQuickAddFaculty(true)}
+                                                className="flex items-center gap-1 text-[10px] font-bold text-gb-primary hover:text-gb-primary/80 transition-colors px-2 py-0.5 rounded-lg hover:bg-blue-50"
+                                            >
+                                                <Plus size={11} /> Nuevo docente
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <select
+                                                className="w-full h-11 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-gb-primary/20 outline-none text-sm appearance-none"
+                                                value={editForm.facultyId || ''}
+                                                onChange={e => setEditForm({ ...editForm, facultyId: e.target.value })}
+                                            >
+                                                <option value="">— Sin asignar —</option>
+                                                {facultyCatalog.map(f => (
+                                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        </div>
                                     </div>
+
+                                    {/* --- Cupo --- */}
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Cupo Máximo</label>
                                         <input
@@ -652,10 +894,84 @@ export default function SchedulingView() {
                                         />
                                     </div>
                                 </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+
+                                {/* --- Editor de Horario --- */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Clock size={15} className="text-amber-500" />
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Horario de Clases</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {ALL_DAYS.map(day => {
+                                            const slot = scheduleDraft[day];
+                                            console.log(`[ADD MODAL] ${day}:`, { start: slot.start, startNormalized: normalizeTimeFormat(slot.start), end: slot.end, endNormalized: normalizeTimeFormat(slot.end), enabled: slot.enabled });
+                                            return (
+                                                <div
+                                                    key={day}
+                                                    className={`rounded-xl border transition-all ${slot.enabled
+                                                        ? 'border-amber-200 bg-amber-50'
+                                                        : 'border-slate-100 bg-slate-50'
+                                                        }`}
+                                                >
+                                                    {/* Row header: checkbox + día */}
+                                                    <label className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={slot.enabled}
+                                                            onChange={e => updateDay(day, { enabled: e.target.checked })}
+                                                            className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                                                        />
+                                                        <span className={`text-sm font-bold w-20 ${slot.enabled ? 'text-amber-800' : 'text-slate-400'
+                                                            }`}>{day}</span>
+
+                                                        {/* Hora inicio / fin — sólo visible si activo */}
+                                                        {slot.enabled && (
+                                                            <div className="flex items-center gap-2 flex-1 flex-wrap">
+                                                                <input
+                                                                    type="time"
+                                                                    value={normalizeTimeFormat(slot.start)}
+                                                                    onChange={e => updateDay(day, { start: e.target.value })}
+                                                                    className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                />
+                                                                <span className="text-xs text-slate-400">–</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={normalizeTimeFormat(slot.end)}
+                                                                    onChange={e => updateDay(day, { end: e.target.value })}
+                                                                    className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Salón"
+                                                                    value={slot.room}
+                                                                    onChange={e => updateDay(day, { room: e.target.value })}
+                                                                    className="h-8 px-2 bg-white border border-amber-200 rounded-lg text-xs flex-1 min-w-[80px] focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                />
+                                                                <div className="relative">
+                                                                    <select
+                                                                        value={slot.roomType}
+                                                                        onChange={e => updateDay(day, { roomType: e.target.value as ClassSchedule['roomType'] })}
+                                                                        className="h-8 pl-2 pr-6 bg-white border border-amber-200 rounded-lg text-xs appearance-none focus:ring-2 focus:ring-amber-300 outline-none"
+                                                                    >
+                                                                        {ROOM_TYPES.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                                                    </select>
+                                                                    <ChevronDown size={10} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                            </div>{/* /Body */}
+
+                            {/* Footer */}
+                            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-3xl">
                                 <button
-                                    onClick={() => { setShowAddModal(false); setEditForm({}); }}
+                                    onClick={() => { setShowAddModal(false); setEditForm({}); setScheduleDraft(buildEmptyDays()); }}
                                     className="px-5 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
                                 >
                                     Cancelar
@@ -663,7 +979,8 @@ export default function SchedulingView() {
                                 <button
                                     onClick={handleAddClass}
                                     disabled={isAdding}
-                                    className={`flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-sm transition-colors ${isAdding ? 'bg-slate-100 text-slate-400' : 'bg-gb-primary text-white hover:bg-gb-primary/90'}`}
+                                    className={`flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-sm transition-colors ${isAdding ? 'bg-slate-100 text-slate-400' : 'bg-gb-primary text-white hover:bg-gb-primary/90'
+                                        }`}
                                 >
                                     {isAdding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                                     Guardar Sección
@@ -672,6 +989,24 @@ export default function SchedulingView() {
                         </motion.div>
                     </div>
                 )}
+
+                {/* Quick-add modaQuickAddFacultyModalls (z-[60] para estar encima del modal principal) */}
+                <QuickAddFacultyModal
+                    isOpen={showQuickAddFaculty}
+                    onClose={() => setShowQuickAddFaculty(false)}
+                    onCreated={member => {
+                        setFacultyCatalog(prev => [...prev, member]);
+                        setEditForm(ef => ({ ...ef, facultyId: member.id }));
+                    }}
+                />
+                <QuickAddModuleModal
+                    isOpen={showQuickAddModule}
+                    onClose={() => setShowQuickAddModule(false)}
+                    onCreated={module => {
+                        setModulesCatalog(prev => [...prev, module]);
+                        setEditForm(ef => ({ ...ef, moduleId: module.id }));
+                    }}
+                />
             </AnimatePresence>
 
         </div>

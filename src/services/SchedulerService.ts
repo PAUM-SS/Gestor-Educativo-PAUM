@@ -13,7 +13,6 @@ export const SchedulerService = {
     const response = await fetch('/api/sections');
     if (!response.ok) throw new Error('Error al cargar secciones');
     const data = await response.json();
-    console.log(data);
     return data;
   },
 

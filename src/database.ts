@@ -683,7 +683,7 @@ export class SqliteDatabase {
         'Vie': scheduleCols.Vie,
         'Sab': scheduleCols.Sab,
         'Edif-Salón': globalRoom,
-        'ID Profesor': row.facultyId || '',
+        'ID-Docente': row.facultyId || '',
         'Docente': row.facultyName || 'Sin asignar',
         'Comentarios': row.comments || '',
         'Ajuste': row.adjustment || ''
@@ -806,6 +806,28 @@ export class SqliteDatabase {
     return { ...updatedRow, semester: sem, competencies: JSON.parse(updatedRow.competencies || "[]"), planning: JSON.parse(updatedRow.planning || "null") } as Module;
   }
 
+  async addModule(module: Module): Promise<Module | null> {
+    const existing = this.db.prepare("SELECT id FROM modules WHERE id = ?").get(module.id);
+    if (existing) return null; // ya existe
+
+    this.db.prepare(`
+      INSERT INTO modules (id, title, credits, description, competencies, status, semester, level, planning)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      module.id,
+      module.title,
+      module.credits,
+      module.description ?? '',
+      JSON.stringify(module.competencies ?? []),
+      module.status ?? 'pendiente',
+      String(module.semester ?? 1),
+      module.level ?? 'Básico',
+      null
+    );
+
+    return module;
+  }
+
   async updateModule(moduleId: string, updates: Partial<Module>) {
     const row = this.db.prepare("SELECT * FROM modules WHERE id = ?").get(moduleId) as any;
     if (!row) return null;
@@ -908,33 +930,33 @@ export class SqliteDatabase {
   }
 
   async importCurriculum(rows: { code: string; title: string; credits: number; semester: number | string; level: Module['level'] }[]) {
-  let created = 0;
-  let updated = 0;
+    let created = 0;
+    let updated = 0;
 
-  const tx = this.db.transaction(() => {
-    for (const row of rows) {
-      const existing = this.db.prepare("SELECT id FROM modules WHERE code = ?").get(row.code) as { id: string } | undefined;
+    const tx = this.db.transaction(() => {
+      for (const row of rows) {
+        const existing = this.db.prepare("SELECT id FROM modules WHERE code = ?").get(row.code) as { id: string } | undefined;
 
-      if (!existing) {
-        const id = row.code;
-        this.db.prepare(`
+        if (!existing) {
+          const id = row.code;
+          this.db.prepare(`
           INSERT INTO modules (id, title, code, credits, description, instructor, competencies, status, semester, level)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(id, row.title, row.code, row.credits, '', 'Sin asignar', '[]', 'pendiente', String(row.semester), row.level);
-        created += 1;
-      } else {
-        this.db.prepare(`
+          created += 1;
+        } else {
+          this.db.prepare(`
           UPDATE modules SET title=?, credits=?, semester=?, level=? WHERE id=?
         `).run(row.title, row.credits, String(row.semester), row.level, existing.id);
-        updated += 1;
+          updated += 1;
+        }
       }
-    }
-  });
-  tx();
+    });
+    tx();
 
-  const total = (this.db.prepare("SELECT count(*) as count FROM modules").get() as any).count;
-  return { created, updated, total, modules: this.getModules() };
-}
+    const total = (this.db.prepare("SELECT count(*) as count FROM modules").get() as any).count;
+    return { created, updated, total, modules: this.getModules() };
+  }
 
   async addStudent(student: Student) {
     const existing = this.db.prepare("SELECT id FROM students WHERE id = ?").get(student.id);

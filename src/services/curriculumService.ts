@@ -27,6 +27,17 @@ export const curriculumService = {
     return await response.json();
   },
 
+  addModule: async (module: Module): Promise<Module | null> => {
+    const response = await fetch('/api/curriculum', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(module),
+    });
+
+    if (!response.ok) throw new Error('Error al registrar módulo');
+    return await response.json();
+  },
+
   updateModulePlanningUnit: async (moduleId: string, unitId: string, completedSessions: number): Promise<PlanningUnit | null> => {
     const response = await fetch(`/api/curriculum/${moduleId}/units/${unitId}`, {
       method: 'PUT',

@@ -13,7 +13,7 @@ import { PDFParse } from 'pdf-parse';
 import * as xlsx from 'xlsx';
 import { db } from './src/database';
 import { MOCK_MODULES } from './src/constants';
-import { ClinicalField, FacultyMember, ManualTask, Student, StudentKardexSummary, AcademicEvent, AcademicSection } from './src/types';
+import { ClinicalField, FacultyMember, ManualTask, Module, Student, StudentKardexSummary, AcademicEvent, AcademicSection } from './src/types';
 import { section } from 'motion/react-client';
 import * as XLSX from 'xlsx';
 
@@ -587,7 +587,7 @@ function toAcademicSection(raw: Record<string, any>): AcademicSection | null {
 
   const capacity = parseInt(String(normalizedRecord['cupo'] ?? '0'), 10) || 0;
   const enrolled = parseInt(String(normalizedRecord['inscritos'] ?? '0'), 10) || 0;
-  const facultyId = String(normalizedRecord['id'] ?? '').trim();
+  const facultyId = String(normalizedRecord['id'] ?? normalizedRecord['id-docente'] ?? '').trim();
   const comments = normalizedRecord['comentarios'] ? String(normalizedRecord['comentarios']).trim() : undefined;
   const adjustment = normalizedRecord['ajuste'] ? String(normalizedRecord['ajuste']).trim() : undefined;
 
@@ -715,7 +715,7 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
       const title = shortMatch[2].trim().toUpperCase();
       // Capturar texto extra en la misma línea después del título
       const afterTitle = line.slice(line.indexOf(shortMatch[2]) + shortMatch[2].length).trim();
-      
+
       const isExcluded = excluded.some(ex => title.includes(ex));
       if (!isExcluded && !seen.has(title)) {
         seen.add(title);
@@ -725,18 +725,18 @@ function extractUnitsFromPDF(text: string): { unitNumber: string; title: string;
         while (k < lines.length && k < i + 20) {
           const nextLine = lines[k];
           if (/^\d+\.\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]/.test(nextLine)) break;
-          if (nextLine.length > 5 && 
-          !/^(McKee|Rodwell|John|Baynes|Capítulo|Sección|D\.A\.|P\(Eds\.|Elsevier|McGraw|Bioquímica\. Las|Harper\.|ilustrada|moleculares)/.test(nextLine) &&
-          !/\(20\d\d\)/.test(nextLine) &&  // filtra años de publicación
-          !/^\d+e\s/.test(nextLine)) {     // filtra "5e", "32e", etc.
+          if (nextLine.length > 5 &&
+            !/^(McKee|Rodwell|John|Baynes|Capítulo|Sección|D\.A\.|P\(Eds\.|Elsevier|McGraw|Bioquímica\. Las|Harper\.|ilustrada|moleculares)/.test(nextLine) &&
+            !/\(20\d\d\)/.test(nextLine) &&  // filtra años de publicación
+            !/^\d+e\s/.test(nextLine)) {     // filtra "5e", "32e", etc.
             contentLines.push(nextLine);
           }
           k++;
         }
-        units.push({ 
-          unitNumber, 
-          title, 
-          content: contentLines.join(' ').slice(0,800)
+        units.push({
+          unitNumber,
+          title,
+          content: contentLines.join(' ').slice(0, 800)
         });
       }
       i++;
@@ -1182,6 +1182,22 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
     }
   });
 
+  app.post('/api/curriculum', async (req, res) => {
+    try {
+      const newModule = req.body as Module;
+      if (!newModule?.id || !newModule?.title) {
+        res.status(400).json({ error: 'Module id or title are required' });
+        return;
+      }
+
+      const created = await db.addModule(newModule);
+      if (created) res.status(201).json(created);
+      else res.status(409).json({ error: 'Module already exists' });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to create module' });
+    }
+  });
+
   app.put('/api/curriculum/:moduleId', async (req, res) => {
     try {
       const updated = await db.updateModule(req.params.moduleId, req.body);
@@ -1193,31 +1209,31 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
   });
 
   app.post('/api/curriculum/import', upload.single('curriculumFile'), async (req: RequestWithFile, res) => {
-  if (!req.file) {
-    res.status(400).json({ error: 'No file uploaded' });
-    return;
-  }
-
-  if (!req.file.originalname.toLowerCase().endsWith('.xlsx')) {
-    res.status(400).json({ error: 'Solo se permiten archivos .xlsx' });
-    return;
-  }
-
-  try {
-    const rows = parseCurriculumImport(req.file);
-
-    if (rows.length === 0) {
-      res.status(400).json({ error: 'No se encontraron módulos PAUM en el archivo. Verifica que la hoja se llame "Base Asignatura" y que la columna "Clave PA" tenga el valor "PAU".' });
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
       return;
     }
 
-    const result = await db.importCurriculum(rows);
-    res.json(result);
-  } catch (error) {
-    console.error('Curriculum import error:', error);
-    res.status(500).json({ error: 'Error al importar el plan de estudios' });
-  }
-});
+    if (!req.file.originalname.toLowerCase().endsWith('.xlsx')) {
+      res.status(400).json({ error: 'Solo se permiten archivos .xlsx' });
+      return;
+    }
+
+    try {
+      const rows = parseCurriculumImport(req.file);
+
+      if (rows.length === 0) {
+        res.status(400).json({ error: 'No se encontraron módulos PAUM en el archivo. Verifica que la hoja se llame "Base Asignatura" y que la columna "Clave PA" tenga el valor "PAU".' });
+        return;
+      }
+
+      const result = await db.importCurriculum(rows);
+      res.json(result);
+    } catch (error) {
+      console.error('Curriculum import error:', error);
+      res.status(500).json({ error: 'Error al importar el plan de estudios' });
+    }
+  });
 
   app.put('/api/curriculum/:moduleId/units/:unitId', async (req, res) => {
     try {
@@ -1670,7 +1686,7 @@ export function createServer({ staticDir }: Pick<StartServerOptions, 'staticDir'
         });
         return;
       }
-
+      // console.log(sectionsRecords)
       const result = await db.importSections(sectionsRecords);
       res.json(result);
     } catch (error) {
