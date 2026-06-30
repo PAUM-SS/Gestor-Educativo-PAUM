@@ -9,7 +9,7 @@
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
     "dev": "vite",
-    "server": "tsx server.ts",
+    "server": "tsx server/index.ts",
     "test-pdf": "tsx test-pdf.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "generate:icons": "node scripts/generate-icons.mjs",
@@ -27,7 +27,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.11.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

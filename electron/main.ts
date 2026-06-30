@@ -4,7 +4,7 @@ import path from 'path';
 // __dirname is natively available in CommonJS
 
 // Importar el servidor
-import { startServer } from '../server.ts';
+import { startServer } from '../server/index.ts';
 
 let mainWindow: BrowserWindow | null = null;
 let apiServer: any = null;
