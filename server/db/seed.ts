@@ -14,7 +14,6 @@ import {
   ClinicalField,
   SectionDailyRecord,
   AcademicEvent,
-  AcademicSectionWithNames
 } from '../../shared/types.ts';
 import {
   MOCK_STUDENTS,

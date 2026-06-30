@@ -20,7 +20,8 @@
     "dist:win": "npm run build:desktop && electron-builder --win portable",
     "preview": "vite preview",
     "clean": "rimraf dist build release",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "rebuild": "npm uninstall better-sqlite3 && npm install better-sqlite3"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

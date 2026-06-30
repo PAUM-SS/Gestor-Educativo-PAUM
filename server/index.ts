@@ -9,7 +9,7 @@ import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
 import { PDFParse } from 'pdf-parse';
 import * as xlsx from 'xlsx';
-import { db } from './db/connection.ts';
+import { db } from './db/index.ts';
 import { MOCK_MODULES } from '../shared/constants';
 import { 
   ClinicalField, 
