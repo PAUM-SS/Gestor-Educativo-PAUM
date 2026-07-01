@@ -1,7 +1,6 @@
 import { Database } from "better-sqlite3";
 import { FacultyMember } from "@/src/types";
-import { normalizeFacultyMember } from "../connection";
-import { parseJSON } from '../connection';
+import { parseJSON, normalizeFacultyMember } from "../transforms";
 
 export class FacultyRepository {
     constructor(private db: Database) {}

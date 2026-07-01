@@ -1,6 +1,6 @@
 import { Database } from "better-sqlite3";
 import { Module, PlanningUnit } from "@/src/types";
-import { parseJSON } from "../connection";
+import { parseJSON } from "../transforms";
 
 export class CurriculumRepository {
     constructor(private db: Database) {}

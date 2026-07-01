@@ -7,12 +7,13 @@ import {
   FacultyMember,
   ClinicalField,
   Module,
+  SectionDailyRecord,
   AcademicEvent,
-  AcademicMinute,
+  ManualTask,
   AcademicSection
 } from '@/src/types';
 
-// Importamos las nuevas sub-clases/servicios
+// Repositorios de cada entidad de la BD
 import { StudentRepository } from './repositories/student.repository.ts';
 import { FacultyRepository } from './repositories/faculty.repository.ts';
 import { ClinicalFieldRepository } from './repositories/clinicalField.repository.ts';
@@ -21,6 +22,8 @@ import { CalendarRepository } from './repositories/calendar.repository.ts';
 import { MinuteRepository } from './repositories/minute.repository.ts';
 import { ScheduleRepository } from './repositories/schedule.repository.ts';
 import { ReportRepository } from './repositories/report.repository.ts';
+import { ActivityRepository } from './repositories/activity.repository.ts';
+import { RotationRepository } from './repositories/rotation.repository.ts';
 
 class AppDatabase {
   private connection !: SqliteDatabase;
@@ -34,6 +37,8 @@ class AppDatabase {
   public minutes!: MinuteRepository;
   public schedule!: ScheduleRepository;
   public reports!: ReportRepository;
+  public activities!: ActivityRepository;
+  public rotations!: RotationRepository;
 
   constructor() {
     this.connection = new SqliteDatabase();
@@ -55,6 +60,10 @@ class AppDatabase {
     this.reports = new ReportRepository(this.db);
   }
     
+  getUploadsDir() {
+    return path.join(this.connection.getDBDir(), 'uploads');
+  }
+  
   // Mapeado de los métodos principales
   // --- Students ---
   getStudents() {
@@ -95,7 +104,7 @@ class AppDatabase {
   }
 
   // --- CLinical Field ---
-  getClinicalField() {
+  getClinicalFields() {
     return this.clinicalFields.getClinicalFields();
   }
 
@@ -143,9 +152,89 @@ class AppDatabase {
     return this.curriculum.importCurriculum(rows);
   }
 
-  getUploadsDir() {
-    return path.join(this.connection.getDBDir(), 'uploads');
+  // --- Schedule --- 
+  getSections() {
+    return this.schedule.getSections();
   }
+  
+  getExportSections() {
+    return this.schedule.getExportSections();
+  }
+
+  getSectionDailyRecords() {
+    return this.schedule.getSectionDailyRecords();
+  }
+
+  addSection(academicSection: AcademicSection) {
+    return this.schedule.addSection(academicSection);
+  }
+
+  updateSection(id: string, updates: Partial<AcademicSection>) {
+    return this.schedule.updateSection(id, updates);
+  }
+
+  deleteSection(id: string) {
+    return this.schedule.deleteSection(id);
+  }
+
+  importSections(sections: AcademicSection[]) {
+    return this.schedule.importSections(sections);
+  }
+
+  getSectionStudents(sectionId: string) {
+    return this.schedule.getSectionStudents(sectionId);
+  }
+
+  addEnrollment(studentId: string, sectionId: string) {
+    return this.schedule.addEnrollment(studentId, sectionId);
+  }
+
+  removeEnrollment(studentId: string, sectionId: string) {
+    return this.schedule.removeEnrollment(studentId, sectionId);
+  }
+
+  upsertSectionDailyRecord(sectionId: string, date: string, updates: Partial<Omit<SectionDailyRecord, 'id' | 'sectionId' | 'date' | 'updatedAt'>>) {
+    return this.schedule.upsertSectionDailyRecord(sectionId, date, updates);
+    }
+
+  // --- Calendar --- 
+  getCalendarEvents(from?: string, to?: string) {
+    return this.calendar.getCalendarEvents(from, to);
+  }
+
+  upsertBuapEvents(events: Omit<AcademicEvent, 'id'>[]) {
+    return this.calendar.upsertBuapEvents(events);
+  }
+
+  addMinutaEvent(task: { id: string; description: string; dueDate: string }, minuteId: string) {
+    return this.calendar.addMinutaEvent(task, minuteId);
+  }
+
+  removeMinutaEvent(taskId: string) {
+     return this.calendar.removeMinutaEvent(taskId);
+  }
+
+  // --- Minutes ---
+  getMinutes() {
+    return this.minutes.getMinutes();
+  }
+
+  updateMinuteTask(minuteId: string, taskId: string, status: ManualTask['status']) {
+    return this.minutes.updateMinuteTask(minuteId, taskId, status);
+  }
+
+  // --- Activity ---
+  getActivities() {
+    return this.activities.getActivities();
+  }
+
+  // --- Rotations ---
+  getRotations() {
+    return this.rotations.getRotations();
+  }
+
+  // --- Reports ---
+  
 }
 
 

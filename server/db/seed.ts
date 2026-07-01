@@ -14,7 +14,7 @@ import {
   ClinicalField,
   SectionDailyRecord,
   AcademicEvent,
-} from '../../shared/types.ts';
+} from '@/shared/types.ts';
 import {
   MOCK_STUDENTS,
   MOCK_MODULES,
@@ -24,9 +24,9 @@ import {
   MOCK_ROTATIONS,
   MOCK_ACTIVITIES,
   MOCK_ACADEMIC_CALENDAR
-} from '../../shared/constants.ts';
+} from '@/shared/constants.ts';
 
-import { normalizeFacultyMember } from './connection';
+import { normalizeFacultyMember } from './transforms';
 
 export interface DatabaseSchema {
   students: Student[];
