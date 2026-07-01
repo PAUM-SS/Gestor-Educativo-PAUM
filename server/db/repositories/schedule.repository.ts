@@ -1,6 +1,6 @@
 import { Database } from "better-sqlite3";
 import { AcademicSection, AcademicSectionWithNames, SectionDailyRecord } from "@/src/types";
-import { parseJSON, normalizeSection, normalizeSectionDailyRecord, normalizeScheduleDay } from "../connection";
+import { parseJSON, normalizeSection, normalizeSectionDailyRecord, normalizeScheduleDay } from "../transforms";
 
 export class ScheduleRepository {
     constructor(private db: Database) {}
@@ -115,7 +115,7 @@ export class ScheduleRepository {
         `).run(s.id, s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule), s.comments ?? null, s.adjustment ?? null);
     
         return s;
-      }
+    }
     
     async updateSection(id: string, updates: Partial<AcademicSection>) {
         const row = this.db.prepare("SELECT * FROM sections WHERE id = ?").get(id) as any;
@@ -212,7 +212,7 @@ export class ScheduleRepository {
         return rows.map(r => r.studentId);
     }
     
-    addEnrollment(studentId: string, sectionId: string) {
+    async addEnrollment(studentId: string, sectionId: string) {
         const existing = this.db.prepare("SELECT studentId FROM section_enrollments WHERE studentId = ? AND sectionId = ?").get(studentId, sectionId);
         if (existing) return false;
     
@@ -225,7 +225,7 @@ export class ScheduleRepository {
         return true;
     }
     
-    removeEnrollment(studentId: string, sectionId: string) {
+    async removeEnrollment(studentId: string, sectionId: string) {
         let changed = false;
         const tx = this.db.transaction(() => {
             const res = this.db.prepare("DELETE FROM section_enrollments WHERE studentId = ? AND sectionId = ?").run(studentId, sectionId);

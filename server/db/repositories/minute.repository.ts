@@ -1,6 +1,7 @@
 import { Database } from "better-sqlite3";
 import { AcademicMinute, ManualTask } from "@/src/types";
-import { parseJSON } from "../connection";
+import { parseJSON } from "../transforms";
+
 export class MinuteRepository {
     constructor(private db: Database) {}
     
