@@ -11,7 +11,7 @@ import {
   AcademicEvent,
   ManualTask,
   AcademicSection
-} from '@/src/types';
+} from '@/shared/types';
 
 // Repositorios de cada entidad de la BD
 import { StudentRepository } from './repositories/student.repository.ts';

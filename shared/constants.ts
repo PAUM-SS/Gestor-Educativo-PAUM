@@ -1,4 +1,17 @@
-import { Student, Module, Rotation, Activity, FacultyMember, ClinicalField, AcademicEvent, AcademicMinute, ManualTask, AcademicSection, DidacticPlanning, PlanningUnit } from './types';
+import { 
+  Student, 
+  Module, 
+  Rotation, 
+  Activity, 
+  FacultyMember, 
+  ClinicalField, 
+  AcademicEvent, 
+  AcademicMinute, 
+  ManualTask,
+  AcademicSection, 
+  DidacticPlanning, 
+  PlanningUnit 
+} from '@/shared/types';
 
 export const MOCK_PLANNING_ANATOMY: DidacticPlanning = {
   id: 'plan-paus-006',
