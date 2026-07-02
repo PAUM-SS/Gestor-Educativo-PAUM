@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
-import { ClassSchedule, AcademicSectionWithNames, Module, FacultyMember } from '../types';
+import { ClassSchedule, AcademicSectionWithNames, Module, FacultyMember } from '@/shared/types';
 import { SchedulerService } from '../services/SchedulerService';
 import { curriculumService } from '../services/curriculumService';
 import { facultyService } from '../services/facultyService';

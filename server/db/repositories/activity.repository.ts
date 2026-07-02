@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { Activity } from "@/src/types";
+import { Activity } from "@/shared/types";
 
 export class ActivityRepository {
 

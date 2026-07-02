@@ -1,4 +1,4 @@
-import { Student } from '../types';
+import { Student } from '@/shared/types';
 
 export const studentService = {
 

@@ -1,4 +1,4 @@
-import { Module, PlanningUnit } from '../types';
+import { Module, PlanningUnit } from '@/shared/types';
 
 export const curriculumService = {
 

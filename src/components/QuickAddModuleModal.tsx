@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, BookOpen, Loader2 } from 'lucide-react';
-import { Module } from '../types';
+import { Module } from '@/shared/types';
 import { curriculumService } from '../services/curriculumService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';

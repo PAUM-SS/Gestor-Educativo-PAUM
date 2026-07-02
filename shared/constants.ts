@@ -34,6 +34,8 @@ export const MOCK_PLANNING_ANATOMY: DidacticPlanning = {
       weight: 20,
       sessions: 18,
       completedSessions: 18,
+      topicsDone: [],
+      totalTopics: 8,
       sessionLog: [
         '2026-02-03', '2026-02-04', '2026-02-05', '2026-02-06',
         '2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13',
@@ -55,6 +57,8 @@ export const MOCK_PLANNING_ANATOMY: DidacticPlanning = {
       weight: 20,
       sessions: 18,
       completedSessions: 8,
+      topicsDone: [],
+      totalTopics: 8,
       sessionLog: [
         '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09',
         '2026-04-13', '2026-04-14', '2026-04-15', '2026-04-16'

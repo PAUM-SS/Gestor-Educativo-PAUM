@@ -1,4 +1,4 @@
-import { AcademicMinute } from '../types';
+import { AcademicMinute } from '@/shared/types';
 
 export const minutesService = {
 

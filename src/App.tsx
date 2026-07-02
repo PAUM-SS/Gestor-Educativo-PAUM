@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
@@ -18,7 +13,7 @@ import PAUMShield from './components/PAUMShield';
 import { Send } from 'lucide-react';
 import ReportModal from './components/ReportModal';
 import { curriculumService, calcCurriculumProgress } from './services/curriculumService';
-import { Module } from './types';
+import { Module } from '@/shared/types';
 import { ToastProvider } from './context/ToastContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 

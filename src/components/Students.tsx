@@ -21,8 +21,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { studentService } from '../services/studentService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
-import { Student } from '../types';
-import { MOCK_MODULES } from '../constants';
+import { Student } from '@/shared/types';
+import { MOCK_MODULES } from '@/shared/constants';
 import { ConfirmModal } from './ConfirmModal';
 
 export default function Students() {

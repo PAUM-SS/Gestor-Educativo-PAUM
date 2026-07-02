@@ -23,7 +23,7 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react';
-import { FacultyMember } from '../types';
+import { FacultyMember } from '@/shared/types';
 import { facultyService } from '../services/facultyService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';

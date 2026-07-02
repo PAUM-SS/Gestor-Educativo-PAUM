@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, Hospital } from 'lucide-react';
-import { ClinicalField } from '../types';
+import { ClinicalField } from '@/shared/types';
 
 interface ClinicalFieldModalProps {
   isOpen: boolean;

@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { AcademicEvent, ManualTask } from "@/src/types";
+import { AcademicEvent, ManualTask } from "@/shared/types";
 
 export class CalendarRepository {
     constructor(private db: Database) {}

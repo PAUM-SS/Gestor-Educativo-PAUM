@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { Module, PlanningUnit } from "@/src/types";
+import { Module, PlanningUnit } from "@/shared/types";
 import { parseJSON } from "../transforms";
 
 export class CurriculumRepository {

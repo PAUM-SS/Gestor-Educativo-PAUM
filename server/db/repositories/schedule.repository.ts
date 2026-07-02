@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { AcademicSection, AcademicSectionWithNames, SectionDailyRecord } from "@/src/types";
+import { AcademicSection, AcademicSectionWithNames, SectionDailyRecord } from "@/shared/types";
 import { parseJSON, normalizeSection, normalizeSectionDailyRecord, normalizeScheduleDay } from "../transforms";
 
 export class ScheduleRepository {

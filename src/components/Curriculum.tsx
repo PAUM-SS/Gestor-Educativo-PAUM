@@ -28,7 +28,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { curriculumService } from '../services/curriculumService';
-import { Module, PlanningUnit } from '../types';
+import { Module, PlanningUnit } from '@/shared/types';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
 import PDFPreview from './PDFPreview';

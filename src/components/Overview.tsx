@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import { minutesService } from '../services/minutesService';
 import { curriculumService, calcCurriculumProgress } from '../services/curriculumService';
-import { Module } from '../types';
-import { AcademicMinute } from '../types';
+import { Module, AcademicMinute } from '@/shared/types';
 import PAUMShield from './PAUMShield';
 
 interface OverviewProps {

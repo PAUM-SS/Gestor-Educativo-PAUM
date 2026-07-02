@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { minutesService } from '../services/minutesService';
 import { calendarService } from '../services/calendarService';
-import { AcademicMinute } from '../types';
+import { AcademicMinute } from '@/shared/types';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
 

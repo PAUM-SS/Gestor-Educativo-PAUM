@@ -1,4 +1,4 @@
-import { FacultyMember } from '../types';
+import { FacultyMember } from '@/shared/types';
 
 type FacultyImportResult = {
   created: number;

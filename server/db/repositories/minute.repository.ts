@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { AcademicMinute, ManualTask } from "@/src/types";
+import { AcademicMinute, ManualTask } from "@/shared/types";
 import { parseJSON } from "../transforms";
 
 export class MinuteRepository {

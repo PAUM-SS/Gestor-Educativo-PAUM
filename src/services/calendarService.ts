@@ -1,4 +1,4 @@
-import { AcademicEvent, ManualTask } from '../types';
+import { AcademicEvent, ManualTask } from '@/shared/types';
 
 export const calendarService = {
 

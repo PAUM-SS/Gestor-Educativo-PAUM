@@ -1,4 +1,4 @@
-import { AcademicSection, AcademicSectionWithNames } from '../types';
+import { AcademicSection, AcademicSectionWithNames } from '@/shared/types';
 
 type ClassImportResult = {
   created: number;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, UserPlus, Loader2 } from 'lucide-react';
-import { FacultyMember } from '../types';
+import { FacultyMember } from '@/shared/types';
 import { facultyService } from '../services/facultyService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';

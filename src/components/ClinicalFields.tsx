@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { ClinicalField } from '../types';
+import { ClinicalField } from '@/shared/types';
 import { clinicalFieldService } from '../services/clinicalFieldService';
 import ClinicalFieldModal from './ClinicalFieldModal';
 import { ConfirmModal } from './ConfirmModal';

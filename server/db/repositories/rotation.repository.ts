@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { Rotation } from "@/src/types";
+import { Rotation } from "@/shared/types";
 
 export class RotationRepository {
 

@@ -1,4 +1,4 @@
-import { ClinicalField } from '../types';
+import { ClinicalField } from '@/shared/types';
 
 export const clinicalFieldService = {
 

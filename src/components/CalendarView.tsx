@@ -13,7 +13,7 @@ import {
   Clock,
   CalendarDays,
 } from 'lucide-react';
-import { AcademicEvent } from '../types';
+import { AcademicEvent } from '@/shared/types';
 import { calendarService } from '../services/calendarService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';

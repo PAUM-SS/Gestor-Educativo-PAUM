@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { ClinicalField } from "@/src/types";
+import { ClinicalField } from "@/shared/types";
 
 export class ClinicalFieldRepository {
 

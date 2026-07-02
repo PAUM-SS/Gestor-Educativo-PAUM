@@ -1,5 +1,5 @@
 import { Database } from "better-sqlite3";
-import { FacultyMember } from "@/src/types";
+import { FacultyMember } from "@/shared/types";
 import { parseJSON, normalizeFacultyMember } from "../transforms";
 
 export class FacultyRepository {
