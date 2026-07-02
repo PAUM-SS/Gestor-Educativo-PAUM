@@ -17,7 +17,7 @@ const PAUM_LEVEL_BY_CODE: Record<string, Module['level']> = {
     'PAUS 262': 'Formativo',   'PPUM 101': 'Práctica/Servicio', 'SSUM 100': 'Práctica/Servicio',
 };
 
-export function inferModuleLevel(code: string): Module['level'] {
+function inferModuleLevel(code: string): Module['level'] {
     const known = PAUM_LEVEL_BY_CODE[code.trim()];
     if (known) return known;
 

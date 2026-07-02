@@ -1,8 +1,40 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { PDFParse } from 'pdf-parse';
 import { execFile } from 'node:child_process';
-import { parseDecimal, clampNumber, normalizeKey } from './utils.ts';
-import { Student } from '@/shared/types.ts';
+import { UploadedFile, parseDecimal, clampNumber, normalizeKey } from './utils.ts';
+import { MOCK_MODULES } from '@/shared/constants.ts';
+import { Student, StudentKardexSummary, Module  } from '@/shared/types.ts';
+
+// ─── Tipos ──────────
+
+type KardexParseResult = {
+    extractedName: string;
+    matricula: string;
+    gpa: number;
+    detectedGpa: number | undefined;
+    detectedSemester: number | undefined;
+    calculatedSemester: number;
+    cohort: string;
+    matchedModuleIds: string[];
+    missingModuleIds: string[];
+    riskReasons: string[];
+    finalStatus: Student['status'];
+    alert: boolean;
+    kardex: StudentKardexSummary;
+    sourcePdfUrl: string | undefined;
+    debugTextUrl: string | undefined;
+    sourceOcrImageUrl: string | undefined;
+    extractionMethod: 'pdf' | 'ocr' | 'pdf+ocr';
+    rawTextLength: number;
+    ocrTextLength: number;
+};
+
+type KardexParseError = {
+    status: 422 | 500;
+    error: string;
+    debug?: Record<string, unknown>;
+};
 
 // ─── OCR ──────────
 
@@ -24,7 +56,7 @@ function execFileAsync(
     });
 }
 
-export async function ocrImageWithWindows(imagePath: string, language = 'es-ES') {
+async function ocrImageWithWindows(imagePath: string, language = 'es-ES') {
     const systemRoot = process.env.SystemRoot || 'C:\\Windows';
     const psPath = path.join(
         systemRoot,
@@ -108,7 +140,7 @@ export async function ocrImageWithWindows(imagePath: string, language = 'es-ES')
 
 // ─── Extractores de texto del Kardex ──────────
 
-export function extractEnrollmentId(text: string) {
+function extractEnrollmentId(text: string) {
     const keywordMatch = text.match(/matr[íi]cula[^0-9]*((?:20)(?:[\s\-_.]*\d){7})/i);
     if (keywordMatch?.[1]) {
         const digits = keywordMatch[1].replace(/[^\d]/g, '');
@@ -127,7 +159,7 @@ export function extractEnrollmentId(text: string) {
     return fallback?.[0];
 }
 
-export function extractSemester(text: string) {
+function extractSemester(text: string) {
     const match =
         text.match(/\bsemestre\s*(?:actual|oficial)?\s*[:=]?\s*([1-9]|1[0-2])\b/i) ||
         text.match(/\b(?:nivel|periodo)\s*[:=]?\s*(?:sem)?\s*([1-9]|1[0-2])\b/i);
@@ -136,7 +168,7 @@ export function extractSemester(text: string) {
     return Number.parseInt(match[1], 10);
 }
 
-export function extractGpa(text: string) {
+function extractGpa(text: string) {
   const match =
     text.match(/\bprom(?:edio)?(?:\s+general)?\s*[:=]?\s*([0-9]{1,2}(?:[.,][0-9]{1,2})?)\b/i) ||
     text.match(/\bprom\.\s*gral\.?\s*[:=]?\s*([0-9]{1,2}(?:[.,][0-9]{1,2})?)\b/i) ||
@@ -151,7 +183,7 @@ export function extractGpa(text: string) {
   return clampNumber(parsed, 0, 10);
 }
 
-export function extractStudentStatusLabel(text: string) {
+function extractStudentStatusLabel(text: string) {
     const sliceMatch =
         text.match(/\btipo\s+alumno\s*[:=]?\s*([^\n]{0,160})/i) ||
         text.match(/\btipo\s+alumno\b([^\n]{0,160})/i);
@@ -177,7 +209,7 @@ export function extractStudentStatusLabel(text: string) {
     return cleaned ? cleaned.slice(0, 60).trim() : undefined;
 }
 
-export function extractProgressPercent(text: string) {
+function extractProgressPercent(text: string) {
     const match = text.match(/\bporcen(?:taje|ta)\s*[:=]?\s*(\d{1,3})\s*%/i);
     if (!match?.[1]) return undefined;
 
@@ -187,7 +219,7 @@ export function extractProgressPercent(text: string) {
     return clampNumber(value, 0, 100);
 }
 
-export function extractStudentName(text: string) {
+function extractStudentName(text: string) {
     const match = text.match(
         /(?:NOMBRE\s+DEL\s+ALUMNO|NOMBRE\s+ALUMNO|ALUMNO|ESTUDIANTE|NOMBRE)\s*[:= -]?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,.'-]{6,120})/i
     );
@@ -206,7 +238,7 @@ export function extractStudentName(text: string) {
     return cleaned.length > 60 ? cleaned.slice(0, 60).trim() : cleaned;
 }
 
-export function mapStatusLabelToStudentStatus(label?: string): Student['status'] | undefined {
+function mapStatusLabelToStudentStatus(label?: string): Student['status'] | undefined {
     const normalized = normalizeKey(label || '');
     if (!normalized) return undefined;
     if (normalized.includes('baja')) return 'baja';
@@ -215,4 +247,296 @@ export function mapStatusLabelToStudentStatus(label?: string): Student['status']
     if (normalized.includes('activo')) return 'activo';
     
     return undefined;
+}
+
+export async function parseKardexFile(
+    file: UploadedFile,
+    uploadsDir: string,
+    planModules: Module[]
+): Promise<{ ok: true; data: KardexParseResult } | { ok: false; error: KardexParseError }> {
+    let rawText = '';
+    let text = '';
+    let ocrText = '';
+    let extractedName = '';
+    let sourcePdfUrl: string | undefined;
+    let debugTextUrl: string | undefined;
+    let parseErrorMessage: string | undefined;
+    let ocrErrorMessage: string | undefined;
+    let sourceOcrImageUrl: string | undefined;
+    let extractionMethod: 'pdf' | 'ocr' | 'pdf+ocr' = 'pdf';
+
+    // ── 1. Extraer texto del PDF ──────────────────────────────────────────────
+    try {
+        const parser = new PDFParse({ data: file.buffer });
+        const parsed = await parser.getText();
+        rawText = String(parsed?.text || '').replace(/\u0000/g, '');
+        const detectedName = extractStudentName(rawText);
+        if (detectedName) extractedName = detectedName;
+    } catch (pdfErr: any) {
+        console.warn('kardex parse error:', pdfErr);
+        parseErrorMessage = String(pdfErr?.message || pdfErr);
+    }
+
+    rawText = rawText.replace(/\u0000/g, '').trim();
+    text = rawText;
+
+    // ── 2. Guardar PDF y texto para debug ────────────────────────────────────
+    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const studentsUploadsDir = path.join(uploadsDir, 'students');
+    fs.mkdirSync(studentsUploadsDir, { recursive: true });
+
+    const savedFileName = `kardex-${Date.now()}-${safeOriginalName}`;
+    const savedFilePath = path.join(studentsUploadsDir, savedFileName);
+    await fs.promises.writeFile(savedFilePath, file.buffer);
+    sourcePdfUrl = `/uploads/students/${encodeURIComponent(savedFileName)}`;
+
+    const savedTextFileName = savedFileName
+        .replace(/^kardex-/, 'kardex-text-')
+        .replace(/\.pdf$/i, '.txt');
+    const savedTextFilePath = path.join(studentsUploadsDir, savedTextFileName);
+    await fs.promises.writeFile(savedTextFilePath, text, 'utf-8');
+    debugTextUrl = `/uploads/students/${encodeURIComponent(savedTextFileName)}`;
+
+    // ── 3. OCR fallback ───────────────────────────────────────────────────────
+    if (text.length < 80) {
+        if (process.platform === 'win32') {
+            try {
+                const parser = new PDFParse({ data: file.buffer });
+                const shot = await parser.getScreenshot({
+                    partial: [1], scale: 3, imageBuffer: true, imageDataUrl: false,
+                });
+                const page = shot?.pages?.[0];
+                if (!page?.data) throw new Error('No se pudo renderizar el PDF a imagen para OCR.');
+
+                const ocrImageFileName = savedFileName.replace(/\.pdf$/i, '-ocr-page1.png');
+                const ocrImagePath = path.join(studentsUploadsDir, ocrImageFileName);
+                await fs.promises.writeFile(ocrImagePath, Buffer.from(page.data));
+                sourceOcrImageUrl = `/uploads/students/${encodeURIComponent(ocrImageFileName)}`;
+
+                ocrText = await ocrImageWithWindows(ocrImagePath, 'es-ES');
+                text = [text, ocrText].filter(Boolean).join('\n\n').replace(/\u0000/g, '').trim();
+            } catch (err: any) {
+                console.warn('kardex ocr error:', err);
+                ocrErrorMessage = String(err?.message || err);
+            }
+        } else {
+            ocrErrorMessage = 'OCR automatico solo esta disponible en Windows.';
+        }
+        await fs.promises.writeFile(savedTextFilePath, text, 'utf-8');
+    }
+
+    const rawLen = rawText.length;
+    const ocrLen = ocrText.length;
+    if (ocrLen > 0 && rawLen >= 80) extractionMethod = 'pdf+ocr';
+    else if (ocrLen > 0) extractionMethod = 'ocr';
+
+    if (!extractedName) {
+        const detectedName = extractStudentName(text);
+        if (detectedName) extractedName = detectedName;
+    }
+
+    // ── 4. Validar texto mínimo ───────────────────────────────────────────────
+    if (text.length < 80) {
+        const details = [parseErrorMessage, ocrErrorMessage].filter(Boolean).join(' | ');
+        return {
+            ok: false,
+            error: {
+                status: 422,
+                error: details
+                    ? `No se pudo leer el Kardex. Detalle: ${details}`
+                    : 'No se pudo extraer texto del PDF (ni con OCR).',
+                debug: {
+                    pdfUrl: sourcePdfUrl,
+                    textUrl: debugTextUrl,
+                    ocrImageUrl: sourceOcrImageUrl,
+                    parseErrorMessage,
+                    ocrErrorMessage,
+                    extractionMethod,
+                    rawTextLength: rawLen,
+                    ocrTextLength: ocrLen,
+                    mergedTextLength: text.length,
+                },
+            },
+        };
+    }
+
+    // ── 5. Fallback de nombre ─────────────────────────────────────────────────
+    if (!extractedName && file.originalname) {
+        extractedName = file.originalname
+        .replace(/\.pdf$/i, '')
+        .replace(/kardex/i, '')
+        .replace(/_/g, ' ')
+        .trim();
+    }
+    if (!extractedName) extractedName = 'Alumno Recuperado (Auto)';
+    if (extractedName.length > 60) extractedName = extractedName.substring(0, 60);
+
+    // ── 6. Validar matrícula ──────────────────────────────────────────────────
+    const matricula = extractEnrollmentId(text);
+    if (!matricula) {
+        return {
+            ok: false,
+            error: {
+                status: 422,
+                error: 'No pude detectar la matrícula (9 dígitos que inicia con 20). Verifica que sea el Kardex/Historial Académico de SIIA BUAP.',
+                debug: { pdfUrl: sourcePdfUrl, textUrl: debugTextUrl, parseErrorMessage },
+            },
+        };
+    }
+
+    // ── 7. Extraer datos ──────────────────────────────────────────────────────
+    const statusLabel = extractStudentStatusLabel(text);
+    const progressPercent = extractProgressPercent(text);
+    const detectedGpa = extractGpa(text);
+    const detectedSemester = extractSemester(text);
+
+    // ── 8. Cruzar módulos ─────────────────────────────────────────────────────
+    const modules = planModules.length > 0 ? planModules : MOCK_MODULES;
+    const normalizedKardexText = normalizeKey(text);
+    const matchedModuleIdSet = new Set<string>();
+
+    const codeIndex = new Map<string, (typeof modules)[number]>();
+    for (const module of modules) {
+        const codeKey = normalizeKey(module.id || '');
+        if (codeKey) codeIndex.set(codeKey, module);
+    }
+
+    const codeLikeMatches = text.match(/\b[A-Z]{3,6}[\s\-_.\/]*\d{3}\b/gi) || [];
+    for (const raw of codeLikeMatches) {
+        const codeKey = normalizeKey(raw);
+        const module = codeIndex.get(codeKey);
+        if (module) matchedModuleIdSet.add(module.id);
+    }
+
+    for (const module of modules) {
+        if (matchedModuleIdSet.has(module.id)) continue;
+        const codeKey = normalizeKey(module.id || '');
+        const titleKey = normalizeKey(module.title || '');
+        if (
+            (codeKey && normalizedKardexText.includes(codeKey)) ||
+            (titleKey && normalizedKardexText.includes(titleKey))
+        ) {
+            matchedModuleIdSet.add(module.id);
+        }
+    }
+
+    const matchedModuleIds = Array.from(matchedModuleIdSet);
+
+    let derivedSemester = 1;
+    for (const module of modules) {
+        if (!matchedModuleIdSet.has(module.id)) continue;
+        if (typeof module.semester === 'number' && module.semester > derivedSemester) {
+            derivedSemester = module.semester;
+        }
+    }
+
+    const maxPlanSemester = modules.reduce((max, m) => {
+        if (typeof m.semester === 'number') return Math.max(max, m.semester);
+        return max;
+    }, 1);
+
+    const derivedSemesterFromModules = matchedModuleIds.length > 0 ? derivedSemester : undefined;
+    const derivedSemesterFromProgress =
+        progressPercent !== undefined
+            ? clampNumber(Math.round((progressPercent / 100) * maxPlanSemester), 1, maxPlanSemester)
+            : undefined;
+
+    const missingModuleIds =
+        matchedModuleIds.length > 0
+            ? modules.filter((m) => !matchedModuleIdSet.has(m.id)).map((m) => m.id)
+            : [];
+
+    const calculatedSemester = clampNumber(
+        detectedSemester ?? derivedSemesterFromModules ?? derivedSemesterFromProgress ?? 1,
+        1,
+        12
+    );
+
+    // ── 9. Riesgo académico ───────────────────────────────────────────────────
+    const admissionYear = Number.parseInt(matricula.substring(0, 4), 10);
+    const cohort = Number.isFinite(admissionYear) ? `${admissionYear}-Otoño` : '2026-Otoño';
+    const currentYear = new Date().getFullYear();
+    const yearsInProgram = Number.isFinite(admissionYear) ? currentYear - admissionYear : 0;
+
+    const pendingPreviousSemesters =
+        matchedModuleIds.length > 0
+        ? modules.filter((m) => {
+            if (matchedModuleIdSet.has(m.id)) return false;
+            if (typeof m.semester !== 'number') return false;
+            return m.semester < calculatedSemester;
+            }).length
+        : 0;
+
+    const riskReasons: string[] = [];
+    if (detectedGpa !== undefined && detectedGpa < 8.0)
+        riskReasons.push('Promedio por debajo de 8.0.');
+    if (detectedGpa === undefined)
+        riskReasons.push('No se detectó el Promedio en el Kardex.');
+    if (matchedModuleIds.length === 0 && progressPercent === undefined)
+        riskReasons.push('No se detectaron materias (códigos o nombres) dentro del Kardex.');
+    if (yearsInProgram >= 4)
+        riskReasons.push(`Antigüedad en el programa: ${yearsInProgram} años (matrícula ${admissionYear}).`);
+    if (pendingPreviousSemesters >= 3)
+        riskReasons.push(`Materias pendientes de semestres previos: ${pendingPreviousSemesters}.`);
+
+    // ── 10. Status final ──────────────────────────────────────────────────────
+    const kardexMappedStatus = mapStatusLabelToStudentStatus(statusLabel);
+    const baseStatus =
+        kardexMappedStatus && kardexMappedStatus !== 'activo' ? kardexMappedStatus : 'activo';
+    const isAtRisk = riskReasons.length > 0;
+    const finalStatus: Student['status'] =
+        baseStatus === 'activo' && isAtRisk ? 'en_riesgo' : baseStatus;
+    const alert = finalStatus === 'en_riesgo' || finalStatus === 'baja' || isAtRisk;
+
+    const gpa = Number.isFinite(detectedGpa as number)
+        ? Number((detectedGpa as number).toFixed(2))
+        : 0;
+
+    const kardex: StudentKardexSummary = {
+        parsedAt: new Date().toISOString(),
+        sourceFileName: file.originalname,
+        sourcePdfUrl,
+        sourceTextUrl: debugTextUrl,
+        sourceOcrImageUrl,
+        extractionMethod,
+        rawTextLength: rawLen,
+        ocrTextLength: ocrLen,
+        extractedTextLength: text.length,
+        extracted: {
+        enrollmentId: matricula,
+        name: extractedName,
+        gpa: detectedGpa,
+        semester: detectedSemester ?? derivedSemesterFromModules ?? derivedSemesterFromProgress,
+        studentStatusLabel: statusLabel,
+        progressPercent,
+        },
+        matchedModuleIds,
+        missingModuleIds,
+        riskReasons,
+    };
+
+    return {
+        ok: true,
+        data: {
+        extractedName,
+        matricula,
+        gpa,
+        detectedGpa,
+        detectedSemester,
+        calculatedSemester,
+        cohort,
+        matchedModuleIds,
+        missingModuleIds,
+        riskReasons,
+        finalStatus,
+        alert,
+        kardex,
+        sourcePdfUrl,
+        debugTextUrl,
+        sourceOcrImageUrl,
+        extractionMethod,
+        rawTextLength: rawLen,
+        ocrTextLength: ocrLen,
+        },
+    };
 }
