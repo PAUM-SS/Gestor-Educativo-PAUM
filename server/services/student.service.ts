@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import * as xlsx from 'xlsx';
 import { PDFParse } from 'pdf-parse';
 import { execFile } from 'node:child_process';
-import { UploadedFile, parseDecimal, clampNumber, normalizeKey } from './utils.ts';
+import { UploadedFile, parseDecimal, clampNumber, normalizeKey, splitDelimitedLine } from './utils.ts';
 import { MOCK_MODULES } from '@/shared/constants.ts';
 import { Student, StudentKardexSummary, Module  } from '@/shared/types.ts';
 
@@ -136,6 +137,52 @@ async function ocrImageWithWindows(imagePath: string, language = 'es-ES') {
     );
 
     return stdout.replace(/\u0000/g, '').trim();
+}
+
+function toStudent(raw: Record<string, any>): Student | null {
+    const normalizedRecord: Record<string, any> = {};
+    for (const [key, value] of Object.entries(raw || {})) {
+        if (key) normalizedRecord[key.toLowerCase().trim()] = value;
+    }
+
+    // Campos requeridos — si no hay nombre ni matrícula, la fila es inválida
+    const name = String(
+        normalizedRecord['nombre'] ??
+        normalizedRecord['name'] ??
+        ''
+    ).trim();
+
+    const enrollmentId = String(
+        normalizedRecord['matrícula'] ??
+        normalizedRecord['matricula'] ??
+        normalizedRecord['enrollmentid'] ??
+        ''
+    ).trim();
+
+    if (!name && !enrollmentId) return null;
+
+    return {
+        id: String(
+        normalizedRecord['id'] ?? `stu-imp-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+        ).trim(),
+        name,
+        enrollmentId,
+        semester: parseInt(String(normalizedRecord['semestre'] ?? normalizedRecord['semester'] ?? '1'), 10) || 1,
+        status: (String(
+        normalizedRecord['estatus'] ??
+        normalizedRecord['status'] ??
+        'activo'
+        ).trim().toLowerCase() || 'activo') as Student['status'],
+        gpa: parseFloat(String(normalizedRecord['promedio'] ?? normalizedRecord['gpa'] ?? '0').replace(',', '.')) || 0,
+        attendance: parseFloat(String(normalizedRecord['asistencia'] ?? normalizedRecord['attendance'] ?? '100')) || 100,
+        email: String(normalizedRecord['correo'] ?? normalizedRecord['email'] ?? '').trim(),
+        cohort: String(normalizedRecord['cohorte'] ?? normalizedRecord['cohort'] ?? '').trim(),
+        tutor: String(normalizedRecord['tutor'] ?? '').trim(),
+        alert: ['sí', 'si', 'yes', '1', 'true'].includes(
+        String(normalizedRecord['alerta'] ?? normalizedRecord['alert'] ?? 'no').toLowerCase().trim()
+        ),
+        kardex: undefined,
+    };
 }
 
 // ─── Extractores de texto del Kardex ──────────
@@ -539,4 +586,58 @@ export async function parseKardexFile(
         ocrTextLength: ocrLen,
         },
     };
+}
+    // Importar base de datos
+
+function parseStudentCsv(text: string): Record<string, any>[] {
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    if (lines.length < 2) return [];
+
+    const headerLine = lines[0];
+    const separator = headerLine.includes(';') ? ';' : headerLine.includes('\t') ? '\t' : ',';
+    const headers = splitDelimitedLine(headerLine, separator);
+
+    return lines.slice(1).map((line) => {
+        const values = splitDelimitedLine(line, separator);
+        return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+    });
+}
+    
+export function parseStudentImport(file: UploadedFile): Student[] {
+    const fileName = file.originalname.toLowerCase();
+
+    if (fileName.endsWith('.xlsx')) {
+        const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const parsed = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, {
+            defval: null,
+            raw: false,
+        });
+        return parsed
+            .map((record) => toStudent(record))
+            .filter((record): record is Student => Boolean(record));
+    }
+
+    const text = file.buffer.toString('utf-8');
+
+    if (fileName.endsWith('.json')) {
+        const parsed = JSON.parse(text);
+        const records = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed?.students)
+            ? parsed.students
+            : [];
+        return records
+            .map((record) => toStudent(record))
+            .filter((record): record is Student => Boolean(record));
+    }
+
+    return parseStudentCsv(text)
+        .map((record) => toStudent(record))
+        .filter((record): record is Student => Boolean(record));
 }

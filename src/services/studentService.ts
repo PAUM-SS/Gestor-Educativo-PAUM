@@ -1,5 +1,12 @@
 import { Student } from '@/shared/types';
 
+type StudentsImportResult = {
+  created: number;
+  updated: number;
+  total: number;
+  students: Student[];
+};
+
 export const studentService = {
 
   getStudents: async (): Promise<Student[]> => {
@@ -36,5 +43,23 @@ export const studentService = {
 
     if (!response.ok) throw new Error('Error al eliminar el alumno');
     return true;
-  }
+  },
+
+  importStudents: async (file: File): Promise<StudentsImportResult | null> => {
+    const formData = new FormData();
+    formData.append('studentsFile', file);
+    const response = await fetch('/api/students/import', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('Error al importar estudiantes');
+    return await response.json();
+  },
+
+  exportStudents: async (): Promise<Blob> => {
+    const response = await fetch('/api/students/export');
+    if (!response.ok) throw new Error('Error al exportar estudiantes');
+    return await response.blob();
+  },
 };

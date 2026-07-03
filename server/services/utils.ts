@@ -20,6 +20,13 @@ export function normalizeNumber(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+export function normalizeBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['1', 'true', 'si', 'sí', 'yes', 'x', 'ok'].includes(normalized);
+}
+
 export function parseDecimal(value?: string) {
   if (!value) return undefined;
   

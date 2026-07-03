@@ -1,5 +1,5 @@
 import { FacultyMember } from '@/shared/types.ts';
-import { UploadedFile, normalizeKey, normalizeNumber, splitDelimitedLine } from './utils.ts';
+import { UploadedFile, normalizeKey, normalizeNumber, splitDelimitedLine, normalizeBoolean } from './utils.ts';
 
 // ─── Constantes ──────────
 
@@ -45,13 +45,6 @@ function normalizeFacultyLevel(
   if (normalized === 'titularb') return 'Titular B';
   if (normalized === 'titularc') return 'Titular C';
   return category === 'Técnico Académico' ? 'Asistente' : 'Asociado A';
-}
-
-function normalizeBoolean(value: unknown) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  const normalized = String(value || '').trim().toLowerCase();
-  return ['1', 'true', 'si', 'sí', 'yes', 'x', 'ok'].includes(normalized);
 }
 
 function normalizeWeeklySchedule(value: unknown) {

@@ -24,6 +24,7 @@ import { useToast } from '../context/ToastContext';
 import { Student } from '@/shared/types';
 import { MOCK_MODULES } from '@/shared/constants';
 import { ConfirmModal } from './ConfirmModal';
+import { Button } from './utils/Buttons';
 
 export default function Students() {
   const { showToast } = useToast();
@@ -32,6 +33,8 @@ export default function Students() {
   const { loading: isLoadingStudents, execute: executeLoad } = useApiError(true);
   const { loading: isAdding, execute: executeAdd } = useApiError();
   const { loading: isDeleting, execute: executeDelete } = useApiError();
+  const { loading: isImporting, execute: executeImport } = useApiError();
+  const { loading: isExporting, execute: executeExport } = useApiError();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
@@ -49,6 +52,7 @@ export default function Students() {
     tutor: 'Dr. Pendiente', attendance: 100, alert: false,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const loadStudents = async () => {
     const result = await executeLoad(
@@ -174,6 +178,41 @@ export default function Students() {
     }
   };
 
+  const handleImportDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const result = await executeImport(
+      () => studentService.importStudents(file),
+      'No se pudo importar la base de datos de alumnos.'
+    );
+    if (result) {
+      showToast(`${result.created} alumnos importados, ${result.updated} actualizados.`, 'success');
+      void loadStudents();
+    }
+  };
+
+
+  const handleExport = async () => {
+    const result = await executeExport(
+      () => studentService.exportStudents(),
+      'No se pudo exportar la base de datos de alumnos.'
+    );
+    if (result) {
+      const url = window.URL.createObjectURL(result);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'alumnos.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Exportación exitosa', 'success');
+    }
+  };
+
+
   return (
     <div className="space-y-6 pb-10">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -183,14 +222,18 @@ export default function Students() {
         </div>
         <div className="flex gap-3">
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf" />
-          <button
-            onClick={handleSync}
-            disabled={isSyncing || isLoadingStudents}
-            className="flex items-center gap-2 bg-white text-gb-secondary border border-slate-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={(isSyncing || isLoadingStudents) ? 'animate-spin text-gb-primary' : 'text-gb-primary'} />
-            {isSyncing ? 'Recargando base...' : 'Recargar Base Local'}
-          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,.json,.xlsx,application/json,text/csv"
+            className="hidden"
+            onChange={handleImportDatabase}
+          />
+          <Button
+            buttonConfig='import'
+            onClick={() => importInputRef.current?.click()}
+            loading={isImporting}
+          />
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 bg-emerald-500 text-white px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-emerald-600 transition-all shadow-sm"
@@ -371,6 +414,15 @@ export default function Students() {
           <p className="text-xs text-blue-600 font-medium mt-1 relative z-10">Corte al semestre actual</p>
           <div className="absolute -right-2 -bottom-2 opacity-10"><GraduationCap size={100} /></div>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <Button
+          buttonConfig="export"
+          onClick={handleExport}
+          loading={isExporting}
+          label="Exportar Alumnos"
+        />
       </div>
 
       {/* Modal: Confirmar eliminación */}
