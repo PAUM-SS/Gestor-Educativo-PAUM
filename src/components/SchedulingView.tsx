@@ -28,6 +28,7 @@ import { facultyService } from '../services/facultyService';
 import { ConfirmModal } from './ConfirmModal';
 import QuickAddFacultyModal from './QuickAddFacultyModal';
 import QuickAddModuleModal from './QuickAddModuleModal';
+import { Button } from './utils/Buttons';
 
 export default function SchedulingView() {
     const { showToast } = useToast();
@@ -311,16 +312,11 @@ export default function SchedulingView() {
                         className="hidden"
                         onChange={handleImportDatabase}
                     />
-                    <button
+                    <Button
+                        buttonConfig='import'
                         onClick={() => importInputRef.current?.click()}
-                        disabled={isImporting}
-                        className={`flex items-center gap-2 bg-white text-gb-secondary border border-slate-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm ${isImporting ? 'opacity-60' : ''}`}
-                    >
-                        {isImporting
-                            ? <><Loader2 size={18} className="animate-spin text-gb-primary" />Importando...</>
-                            : <><UploadCloud size={18} className="text-gb-primary" />Importar Base</>
-                        }
-                    </button>
+                        loading={isImporting}
+                    />
                     <button
                         onClick={() => { setEditForm({}); setShowAddModal(true); }}
                         className="flex items-center gap-2 bg-gb-primary text-white px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-gb-primary/90 transition-all shadow-lg"
@@ -469,16 +465,11 @@ export default function SchedulingView() {
 
             {/* --- Exportar Base --- */}
             <div className="flex justify-end pt-2">
-                <button
+                <Button
+                    buttonConfig='export'
                     onClick={handleExport}
-                    disabled={isExporting}
-                    className={`flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all shadow-sm ${isExporting ? 'opacity-60' : ''}`}
-                >
-                    {isExporting
-                        ? <><Loader2 size={18} className="animate-spin text-gb-primary" />Exportando...</>
-                        : <><DownloadCloud size={18} className="text-gb-primary" />Exportar Base</>
-                    }
-                </button>
+                    loading={isExporting}
+                />
             </div>
 
             {/* --- Panel de Detalles / Edición --- */}
@@ -504,83 +495,127 @@ export default function SchedulingView() {
                             className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
                         >
                             {/* Header del panel */}
-                            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-start bg-white">
                                 <div>
                                     <h2 className="text-xl font-display font-bold text-slate-800">
-                                        {isEditing ? 'Editar Sección' : 'Ficha de la Sección'}
+                                        {isEditing ? 'Editar Clase' : 'Ficha de la Clase'}
                                     </h2>
-                                    <p className="text-xs text-slate-400 font-mono mt-0.5">NRC: {selectedClass.id}</p>
                                 </div>
-                                <button onClick={closePanel} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                    <X size={20} />
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <Button
+                                        buttonConfig='close'
+                                        onClick={closePanel}
+                                    />
+                                </div>
                             </div>
 
                             {/* Cuerpo del panel */}
                             <div className="p-6 overflow-y-auto flex-1">
                                 {!isEditing ? (
-                                    // Vista de solo lectura
-                                    <div className="space-y-6">
-                                        <div className="flex justify-between items-start">
+                                    <div className="space-y-4">
+                                        <div className='flex justify-between'>
                                             <div>
-                                                <h3 className="text-2xl font-bold text-slate-900">{selectedClass.moduleName}</h3>
-                                                <p className="text-slate-400 font-mono text-sm mt-0.5">{selectedClass.moduleId}</p>
+                                                <div className="flex items-baseline gap-3">
+                                                    <h2 className="text-2xl font-display font-bold text-slate-900">
+                                                        {selectedClass.moduleName}
+                                                    </h2>
+                                                    <span className="text-md font-medium text-slate-400">
+                                                        {selectedClass.moduleId}
+                                                    </span>
+                                                </div>
+                                                <p className="text-md font-bold text-slate-700 mt-1 font-mono">
+                                                    NRC: {selectedClass.id}
+                                                </p>
                                             </div>
-                                            <span className={`px-3 py-1 font-bold rounded-lg text-sm border ${selectedClass.capacity > 0 && selectedClass.enrolled >= selectedClass.capacity
-                                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                                : 'bg-blue-50 text-blue-700 border-blue-200'
-                                                }`}>
+                                            
+                                            <span className={`px-3 py-1 font-bold rounded-lg text-sm border ${
+                                                selectedClass.capacity > 0 && selectedClass.enrolled >= selectedClass.capacity
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                            }`}>
                                                 {selectedClass.enrolled}/{selectedClass.capacity} inscritos
                                             </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-2">
-                                                    <Users size={14} /> Docente Asignado
+                                        {/* Docente + Semestre/Créditos */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-1.5">
+                                                    <Users size={12} /> Docente Asignado
                                                 </p>
-                                                <p className={`font-medium text-sm ${selectedClass.facultyName === 'Sin asignar' ? 'text-slate-400 italic' : 'text-slate-800'}`}>
+                                                <p className={`font-medium text-sm ${
+                                                    selectedClass.facultyName === 'Sin asignar'
+                                                        ? 'text-slate-400 italic'
+                                                        : 'text-slate-800'
+                                                }`}>
                                                     {selectedClass.facultyName}
                                                 </p>
                                                 {selectedClass.facultyId && (
-                                                    <p className="text-[10px] text-slate-400 font-mono mt-1">{selectedClass.facultyId}</p>
+                                                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                    {selectedClass.facultyId}
+                                                </p>
                                                 )}
                                             </div>
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-2">
-                                                    <MapPin size={14} /> Edificio y Salón
-                                                </p>
-                                                {selectedClass.schedule.length > 0 && selectedClass.schedule[0].room ? (
+
+                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                <div className="flex justify-center gap-4">
                                                     <div>
-                                                        <p className="font-medium text-slate-800 text-sm">{selectedClass.schedule[0].room}</p>
-                                                        <p className="text-[10px] text-slate-400 mt-0.5">{selectedClass.schedule[0].roomType}</p>
+                                                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">
+                                                            Semestre
+                                                        </p>
+                                                        <p className="font-bold text-slate-800 text-sm">
+                                                            {modulesCatalog.find(m => m.id === selectedClass.moduleId)?.semester ?? '—'}
+                                                        </p>
                                                     </div>
-                                                ) : (
-                                                    <p className="font-medium text-slate-400 text-sm italic">Sin salón asignado</p>
-                                                )}
+                                                    <div className="border-l border-slate-200 pl-4">
+                                                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">
+                                                            Créditos
+                                                        </p>
+                                                        <p className="font-bold text-slate-800 text-sm">
+                                                            {modulesCatalog.find(m => m.id === selectedClass.moduleId)?.credits ?? '—'}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
+                                        {/* Horario */}
                                         <div>
-                                            <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
-                                                <Clock size={18} className="text-amber-500" /> Horario Programado
+                                            <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                <Clock size={14} className="text-amber-500" /> Horario
                                             </h4>
-                                            {selectedClass.schedule.length > 0 ? (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {selectedClass.schedule.map((sch, idx) => (
-                                                        <div key={idx} className="bg-amber-50 text-amber-800 border border-amber-100 px-3 py-2 rounded-lg text-sm font-medium">
-                                                            <span className="font-bold">{sch.day.substring(0, 3)}:</span>{' '}
-                                                            {sch.start} – {sch.end}
-                                                            {sch.room && <span className="ml-2 text-amber-600 text-xs">· {sch.room}</span>}
+                                            <div className="space-y-1.5">
+                                                {ALL_DAYS.map(day => {
+                                                    const slot = selectedClass.schedule.find(s => s.day === day);
+                                                    return slot ? (
+                                                        <div
+                                                            key={day}
+                                                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100"
+                                                        >
+                                                            <span className="text-xs font-bold text-blue-700 w-20">{day}</span>
+                                                            <span className="text-xs font-mono text-blue-800">
+                                                                {normalizeTimeFormat(slot.start)} – {normalizeTimeFormat(slot.end)}
+                                                            </span>
+                                                            {slot.room && (
+                                                                <span className="text-xs text-blue-500 flex items-center gap-1 ml-auto">
+                                                                    <MapPin size={10} /> {slot.room}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <p className="text-slate-400 italic text-sm">Sin horario programado.</p>
-                                            )}
+                                                    ) : (
+                                                        <div
+                                                            key={day}
+                                                            className="flex items-center gap-3 px-3 py-1.5 rounded-lg"
+                                                        >
+                                                            <span className="text-[11px] text-slate-300 w-20">{day}</span>
+                                                            <span className="text-[11px] text-slate-300">Sin clase</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
-                                ) : (
+                                    ) : (
                                     // Vista de edición
                                     <div className="space-y-4">
                                         {/* NRC */}
@@ -678,7 +713,6 @@ export default function SchedulingView() {
                                             <div className="space-y-2">
                                                 {ALL_DAYS.map(day => {
                                                     const slot = scheduleDraft[day];
-                                                    console.log(`[EDIT PANEL] ${day}:`, { start: slot.start, startNormalized: normalizeTimeFormat(slot.start), end: slot.end, endNormalized: normalizeTimeFormat(slot.end), enabled: slot.enabled });
                                                     return (
                                                         <div
                                                             key={day}
@@ -748,43 +782,29 @@ export default function SchedulingView() {
                                 <div className="flex gap-2">
                                     {!isEditing ? (
                                         <>
-                                            <button
+                                            <Button
+                                                buttonConfig='edit'
                                                 onClick={handleEditClick}
-                                                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors"
-                                            >
-                                                <Edit size={16} /> Editar
-                                            </button>
-                                            <button
+                                            />
+                                            <Button
+                                                buttonConfig='delete'
                                                 onClick={handleDeleteClick}
-                                                disabled={isDeleting}
-                                                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors disabled:opacity-50"
-                                            >
-                                                {isDeleting
-                                                    ? <Loader2 size={16} className="animate-spin" />
-                                                    : <Trash2 size={16} />
-                                                }
-                                                Eliminar
-                                            </button>
+                                                loading={isDeleting}
+                                            />
                                         </>
                                     ) : (
-                                        <button
+                                        <Button
+                                            buttonConfig='save'
                                             onClick={handleSaveEdit}
-                                            disabled={isSaving}
-                                            className={`flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-sm transition-colors ${isSaving ? 'bg-slate-100 text-slate-400' : 'bg-gb-primary text-white hover:bg-gb-primary/90'}`}
-                                        >
-                                            {isSaving
-                                                ? <><Loader2 size={16} className="animate-spin" />Guardando...</>
-                                                : <><Save size={16} />Guardar Cambios</>
-                                            }
-                                        </button>
+                                            loading={isSaving}
+                                        />
                                     )}
                                 </div>
-                                <button
-                                    onClick={closePanel}
-                                    className="px-5 py-2 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors"
-                                >
-                                    Cerrar
-                                </button>
+                                <Button
+                                    buttonConfig='cancel'
+                                    onClick={isEditing ? () => setIsEditing(false) : closePanel}
+                                    label={isEditing ? "Cancelar" : "Cerrar"}
+                                />
                             </div>
                         </motion.div>
                     </div>
