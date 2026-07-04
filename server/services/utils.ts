@@ -29,7 +29,7 @@ export function normalizeBoolean(value: unknown) {
 
 export function parseDecimal(value?: string) {
   if (!value) return undefined;
-  
+
   const normalized = value.replace(',', '.').trim();
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed)) return undefined;
@@ -39,6 +39,14 @@ export function parseDecimal(value?: string) {
 
 export function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+export function formatDate(date = new Date()): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
 }
 
 export function splitDelimitedLine(line: string, separator: string) {

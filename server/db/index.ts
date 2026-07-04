@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SqliteDatabase } from './connection.ts';
 import path from 'node:path';
 
-import { 
+import {
   Student,
   FacultyMember,
   ClinicalField,
@@ -44,7 +44,7 @@ class AppDatabase {
     this.connection = new SqliteDatabase();
   }
 
-  async init() { 
+  async init() {
     await this.connection.init();
 
     this.db = this.connection.getRawConnection();
@@ -59,11 +59,11 @@ class AppDatabase {
     this.schedule = new ScheduleRepository(this.db);
     this.reports = new ReportRepository(this.db);
   }
-    
+
   getUploadsDir() {
     return path.join(this.connection.getDBDir(), 'uploads');
   }
-  
+
   // Mapeado de los métodos principales
   // --- Students ---
   getStudents() {
@@ -81,7 +81,7 @@ class AppDatabase {
   deleteStudent(id: string) {
     return this.students.deleteStudent(id);
   }
-  
+
   // --- Faculty ---
   getFaculty() {
     return this.faculty.getFaculty();
@@ -156,7 +156,7 @@ class AppDatabase {
   getSections() {
     return this.schedule.getSections();
   }
-  
+
   getExportSections() {
     return this.schedule.getExportSections();
   }
@@ -195,7 +195,7 @@ class AppDatabase {
 
   upsertSectionDailyRecord(sectionId: string, date: string, updates: Partial<Omit<SectionDailyRecord, 'id' | 'sectionId' | 'date' | 'updatedAt'>>) {
     return this.schedule.upsertSectionDailyRecord(sectionId, date, updates);
-    }
+  }
 
   // --- Calendar --- 
   getCalendarEvents(from?: string, to?: string) {
@@ -211,7 +211,7 @@ class AppDatabase {
   }
 
   removeMinutaEvent(taskId: string) {
-     return this.calendar.removeMinutaEvent(taskId);
+    return this.calendar.removeMinutaEvent(taskId);
   }
 
   // --- Minutes ---
@@ -234,7 +234,7 @@ class AppDatabase {
   }
 
   // --- Reports ---
-  
+
 }
 
 

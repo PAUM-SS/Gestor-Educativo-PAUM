@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import {
   Hospital,
@@ -18,6 +18,7 @@ import ClinicalFieldModal from './ClinicalFieldModal';
 import { ConfirmModal } from './ConfirmModal';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
+import { Button } from './utils/Buttons';
 
 export default function ClinicalFields() {
   const { showToast } = useToast();
@@ -25,8 +26,13 @@ export default function ClinicalFields() {
   const { loading: isAdding, execute: executeAdd } = useApiError();
   const { loading: isUpdating, execute: executeUpdate } = useApiError();
   const { loading: isDeleting, execute: executeDelete } = useApiError();
+  const { loading: isImporting, execute: executeImport } = useApiError();
+  const { loading: isExporting, execute: executeExport } = useApiError();
+
   const [selectedClinicalField, setSelectedClinicalField] = useState<ClinicalField | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [fields, setFields] = useState<ClinicalField[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -99,20 +105,67 @@ export default function ClinicalFields() {
     }
   };
 
+  const handleImportDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const result = await executeImport(
+      () => clinicalFieldService.importClinicalFields(file),
+      'Error al importar archivo. Verifica el formato e inténtalo de nuevo.'
+    );
+
+    if (result) {
+      showToast(`Importación exitosa. ${result.created} creados, ${result.updated} actualizados.`, 'success');
+      void loadFields();
+    }
+    if (importInputRef.current) importInputRef.current.value = '';
+  };
+
+  const handleExport = async () => {
+    const result = await executeExport(
+      () => clinicalFieldService.exportClinicalFields(),
+      'Error al exportar base de datos.'
+    );
+
+    if (result) {
+      const url = window.URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h2 className="text-3xl font-display font-bold text-gb-text tracking-tight">Base de Sedes Clínicas</h2>
           <p className="text-slate-500 mt-1">Evaluación de pertinencia y capacidad para el programa PAUM.</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-gb-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-gb-primary/90 transition-all active:scale-95"
-        >
-          <Plus size={20} />
-          Registrar Sede
-        </button>
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="file"
+            ref={importInputRef}
+            onChange={handleImportDatabase}
+            accept=".xlsx, .csv, .json"
+            className="hidden"
+          />
+          <Button
+            buttonConfig="import"
+            onClick={() => importInputRef.current?.click()}
+            loading={isImporting}
+            label="Importar Base"
+          />
+          <Button
+            buttonConfig="add"
+            onClick={() => setIsModalOpen(true)}
+            label="Registrar Sede"
+          />
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -205,7 +258,14 @@ export default function ClinicalFields() {
           )}
         </div>
       </div>
-
+      <div className="flex justify-end pt-2">
+        <Button
+          buttonConfig="export"
+          onClick={handleExport}
+          loading={isExporting}
+          label="Exportar"
+        />
+      </div>
       <ClinicalFieldModal
         isOpen={isModalOpen}
         isSaving={isAdding || isUpdating}

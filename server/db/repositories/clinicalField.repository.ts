@@ -3,10 +3,10 @@ import { ClinicalField } from "@/shared/types";
 
 export class ClinicalFieldRepository {
 
-  constructor(private db: Database) {}
+  constructor(private db: Database) { }
 
   getClinicalFields(): ClinicalField[] {
-      return this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
+    return this.db.prepare("SELECT * FROM clinical_fields ORDER BY id DESC").all() as ClinicalField[];
   }
 
   async addClinicalField(field: ClinicalField) {
@@ -18,7 +18,7 @@ export class ClinicalFieldRepository {
         (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(field.id, field.name, field.type, field.level, field.slots, field.status, field.pertinence, field.lastInspection, field.agreementExpiry);
-    
+
     return field;
   }
 
@@ -50,7 +50,73 @@ export class ClinicalFieldRepository {
       this.db.prepare("DELETE FROM clinical_fields WHERE id = ?").run(id);
     });
     tx();
-    
+
     return true;
+  }
+
+  importClinicalFields(fields: ClinicalField[]) {
+    let created = 0;
+    let updated = 0;
+
+    const tx = this.db.transaction(() => {
+      const insertStmt = this.db.prepare(`
+        INSERT INTO clinical_fields 
+        (id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const updateStmt = this.db.prepare(`
+        UPDATE clinical_fields SET 
+        name=?, type=?, level=?, slots=?, status=?, pertinence=?, lastInspection=?, agreementExpiry=? 
+        WHERE id=?
+      `);
+
+      for (const field of fields) {
+        const existing = this.db.prepare("SELECT id FROM clinical_fields WHERE id = ?").get(field.id);
+
+        if (existing) {
+          updateStmt.run(
+            field.name, field.type, field.level, field.slots,
+            field.status, field.pertinence, field.lastInspection, field.agreementExpiry, field.id
+          );
+          updated++;
+        } else {
+          insertStmt.run(
+            field.id, field.name, field.type, field.level, field.slots,
+            field.status, field.pertinence, field.lastInspection, field.agreementExpiry
+          );
+          created++;
+        }
+      }
+    });
+
+    tx();
+
+    const total = (this.db.prepare("SELECT count(*) as count FROM clinical_fields").get() as any).count;
+    const allFields = this.getClinicalFields();
+
+    return { created, updated, total, clinicalFields: allFields };
+  }
+
+  exportClinicalFields(): any[] {
+    const rows = this.db.prepare(`
+      SELECT 
+        id, name, type, level, slots, status, pertinence, lastInspection, agreementExpiry
+      FROM clinical_fields 
+      ORDER BY id ASC
+    `).all() as ClinicalField[];
+
+    return rows.map((row, index) => ({
+      'No.': index + 1,
+      'ID Sede': row.id,
+      'Nombre Sede': row.name,
+      'Tipo': row.type,
+      'Nivel': row.level,
+      'Plazas': row.slots,
+      'Estatus': row.status,
+      'Pertinencia': row.pertinence,
+      'Última Inspección': row.lastInspection,
+      'Vencimiento de Convenio': row.agreementExpiry
+    }));
   }
 }
