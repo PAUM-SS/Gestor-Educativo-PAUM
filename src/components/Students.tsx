@@ -1,9 +1,8 @@
-import { useState, useRef, ChangeEvent, FormEvent, MouseEvent, useEffect } from 'react';
+import { useState, useRef, ChangeEvent, FormEvent, MouseEvent, useEffect, useMemo } from 'react';
 import {
   Search,
   Filter,
   UploadCloud,
-  RefreshCw,
   GraduationCap,
   CheckCircle,
   Clock,
@@ -14,7 +13,15 @@ import {
   Trash2,
   UserPlus,
   X,
-  AlertTriangle
+  AlertTriangle,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Edit,
+  Save,
+  BookOpen,
+  BookCheck,
+  BookX,
 } from 'lucide-react';
 import InfoPanel from '@/src/components/InstructionInfo';
 import { motion, AnimatePresence } from 'motion/react';
@@ -25,6 +32,53 @@ import { Student } from '@/shared/types';
 import { MOCK_MODULES } from '@/shared/constants';
 import { ConfirmModal } from './ConfirmModal';
 import { Button } from './utils/Buttons';
+import { FilterPanel, FilterConfig } from './utils/FilterPanel';
+
+// ─── Tipos para ordenamiento ────────────────────────────────────────────────
+type SortKey = 'name' | 'cohort' | 'status' | 'semester' | 'gpa' | null;
+type SortDir = 'asc' | 'desc';
+
+// ─── Tipos para filtros ──────────────────────────────────────────────────────
+interface ActiveFilters {
+  cohort: string;
+  tutor: string;
+  status: string;
+  semester: string;
+  gpaMin: string;
+  gpaMax: string;
+}
+
+const DEFAULT_FILTERS: ActiveFilters = {
+  cohort: '',
+  tutor: '',
+  status: '',
+  semester: '',
+  gpaMin: '',
+  gpaMax: '',
+};
+
+// ─── Utilidad: parsear cohorte → valor numérico para ordenar ────────────────
+const SEASON_ORDER: Record<string, number> = {
+  primavera: 0,
+  verano: 1,
+  otoño: 2,
+  invierno: 3,
+};
+
+function cohortToNumber(cohort: string): number {
+  const [yearStr, season = ''] = cohort.split('-');
+  const year = parseInt(yearStr, 10) || 0;
+  const seasonVal = SEASON_ORDER[season.toLowerCase()] ?? 0;
+  return year * 10 + seasonVal;
+}
+
+// ─── Componente de icono de ordenamiento ────────────────────────────────────
+function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== column) return <ChevronsUpDown size={14} className="opacity-40" />;
+  return sortDir === 'asc'
+    ? <ChevronUp size={14} className="text-gb-primary" />
+    : <ChevronDown size={14} className="text-gb-primary" />;
+}
 
 export default function Students() {
   const { showToast } = useToast();
@@ -45,6 +99,13 @@ export default function Students() {
 
   // Estado para el modal de confirmación de borrado
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  // ─── Estado filtros y panel ───────────────────────────────────────────────
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
+
+  // ─── Estado ordenamiento ──────────────────────────────────────────────────
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const [newStudent, setNewStudent] = useState<Partial<Student>>({
     name: '', enrollmentId: '', email: '', semester: 1,
@@ -77,16 +138,101 @@ export default function Students() {
     return parts.slice(0, 2).join(' ') || tutor;
   };
 
-  const filteredStudents = students.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.enrollmentId.toLowerCase().includes(searchTerm.toLowerCase())
+  // ─── Valores únicos para los selects de filtro ───────────────────────────
+  const uniqueCohorts = useMemo(() =>
+    [...new Set(students.map(s => s.cohort))].sort((a, b) => cohortToNumber(a) - cohortToNumber(b)),
+    [students]
+  );
+  const uniqueTutors = useMemo(() =>
+    [...new Set(students.map(s => s.tutor))].sort(),
+    [students]
+  );
+  const uniqueStatuses = useMemo(() =>
+    [...new Set(students.map(s => s.status as string))].sort(),
+    [students]
+  );
+  const uniqueSemesters = useMemo(() =>
+    [...new Set(students.map(s => s.semester))].sort((a, b) => a - b),
+    [students]
   );
 
-  // --- Handlers ---
-  const handleSync = async () => {
-    setIsSyncing(true);
-    await loadStudents();
-    setIsSyncing(false);
+  // ─── Cantidad de filtros activos ─────────────────────────────────────────
+  const activeFilterCount = Object.values(activeFilters).filter(v => v !== '').length;
+
+  // ─── Pipeline: búsqueda → filtros → ordenamiento ─────────────────────────
+  const processedStudents = useMemo(() => {
+    let result = students;
+
+    // 1. Búsqueda por texto
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(term) ||
+        s.enrollmentId.toLowerCase().includes(term)
+      );
+    }
+
+    // 2. Filtros avanzados
+    if (activeFilters.cohort) result = result.filter(s => s.cohort === activeFilters.cohort);
+    if (activeFilters.tutor) result = result.filter(s => s.tutor === activeFilters.tutor);
+    if (activeFilters.status) result = result.filter(s => (s.status as string) === activeFilters.status);
+    if (activeFilters.semester) result = result.filter(s => s.semester === Number(activeFilters.semester));
+    if (activeFilters.gpaMin !== '') result = result.filter(s => s.gpa >= Number(activeFilters.gpaMin));
+    if (activeFilters.gpaMax !== '') result = result.filter(s => s.gpa <= Number(activeFilters.gpaMax));
+
+    // 3. Ordenamiento
+    if (sortKey) {
+      result = [...result].sort((a, b) => {
+        let cmp = 0;
+        switch (sortKey) {
+          case 'name':
+            cmp = a.name.localeCompare(b.name, 'es');
+            break;
+          case 'cohort':
+            cmp = cohortToNumber(a.cohort) - cohortToNumber(b.cohort);
+            break;
+          case 'status':
+            cmp = (a.status as string).localeCompare(b.status as string, 'es');
+            break;
+          case 'semester':
+            cmp = a.semester - b.semester;
+            break;
+          case 'gpa':
+            cmp = a.gpa - b.gpa;
+            break;
+        }
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return result;
+  }, [students, searchTerm, activeFilters, sortKey, sortDir]);
+
+  // ─── Toggle ordenamiento por columna ────────────────────────────────────
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  // ─── Abrir/cerrar panel de filtros ──────────────────────────────────────
+  const handleToggleFilters = () => {
+    setShowFilters(prev => !prev);
+  };
+
+  const handleApplyFilters = (newFilters: Record<string, any>) => {
+    setActiveFilters(newFilters as ActiveFilters);
+    setShowFilters(false);
+  };
+
+  const handleClearFilters = () => {
+    setActiveFilters(DEFAULT_FILTERS);
+    setShowFilters(false);
+  };
+
   };
 
   const handleKardexClick = () => fileInputRef.current?.click();
@@ -275,11 +421,80 @@ export default function Students() {
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none transition-all font-medium text-sm text-slate-700"
           />
         </div>
-        <button className="px-5 py-3 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold text-sm hover:bg-slate-50 flex gap-2 items-center">
+        {/* Botón de Filtros con badge de filtros activos */}
+        <button
+          onClick={handleToggleFilters}
+          className={`relative px-5 py-3 border rounded-2xl font-bold text-sm flex gap-2 items-center transition-all ${showFilters || activeFilterCount > 0
+            ? 'bg-gb-primary/10 border-gb-primary/40 text-gb-primary hover:bg-gb-primary/15'
+            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+        >
           <Filter size={18} />
           Filtros
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gb-primary text-white text-[10px] font-black rounded-full flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
         </button>
       </div>
+
+      {/* Panel de Filtros*/}
+      <FilterPanel
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        filters={[
+          {
+            id: 'cohort',
+            label: 'Cohorte',
+            type: 'select',
+            options: uniqueCohorts.map(c => ({ value: c, label: c }))
+          },
+          {
+            id: 'tutor',
+            label: 'Tutor',
+            type: 'select',
+            options: uniqueTutors.map(t => ({ value: t, label: formatTutorLabel(t) }))
+          },
+          {
+            id: 'status',
+            label: 'Estatus',
+            type: 'select',
+            options: uniqueStatuses.map(s => ({ value: s, label: s.replaceAll('_', ' ') }))
+          },
+          {
+            id: 'semester',
+            label: 'Semestre',
+            type: 'select',
+            options: uniqueSemesters.map(s => ({ value: String(s), label: `${s}º Semestre` }))
+          },
+          {
+            id: 'gpaMin',
+            label: 'Promedio mín.',
+            type: 'number',
+            min: 0,
+            max: 10,
+            step: 0.1,
+            placeholder: '0.0'
+          },
+          {
+            id: 'gpaMax',
+            label: 'Promedio máx.',
+            type: 'number',
+            min: 0,
+            max: 10,
+            step: 0.1,
+            placeholder: '10.0'
+          }
+        ]}
+        activeFilters={activeFilters}
+        onApply={handleApplyFilters}
+        onClear={handleClearFilters}
+        totalResults={students.length}
+        filteredResults={processedStudents.length}
+      />
+
+
 
       {/* Students Table */}
       <div className="geometric-card overflow-hidden">
@@ -294,16 +509,41 @@ export default function Students() {
             <table className="w-full text-left">
               <thead>
                 <tr className="table-header-gb">
-                  <th className="px-5 py-4">Nombre Completo / Matrícula</th>
-                  <th className="px-4 py-4">Cohorte / Tutor Asignado</th>
-                  <th className="px-4 py-4 text-center">Estatus</th>
-                  <th className="px-4 py-4 text-center">Semestre</th>
-                  <th className="px-4 py-4 text-center">Promedio</th>
+                  <th className="px-5 py-4">
+                    <button onClick={() => handleSort('name')} className="flex items-center gap-1.5 font-bold hover:text-gb-primary transition-colors">
+                      Nombre Completo / Matrícula
+                      <SortIcon column="name" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-4">
+                    <button onClick={() => handleSort('cohort')} className="flex items-center gap-1.5 font-bold hover:text-gb-primary transition-colors">
+                      Cohorte / Tutor Asignado
+                      <SortIcon column="cohort" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <button onClick={() => handleSort('status')} className="flex items-center gap-1.5 font-bold hover:text-gb-primary transition-colors mx-auto">
+                      Estatus
+                      <SortIcon column="status" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <button onClick={() => handleSort('semester')} className="flex items-center gap-1.5 font-bold hover:text-gb-primary transition-colors mx-auto">
+                      Semestre
+                      <SortIcon column="semester" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <button onClick={() => handleSort('gpa')} className="flex items-center gap-1.5 font-bold hover:text-gb-primary transition-colors mx-auto">
+                      Promedio
+                      <SortIcon column="gpa" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
                   <th className="px-4 py-4 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredStudents.map((student) => (
+                {processedStudents.map((student) => (
                   <tr key={student.id} className="table-row-gb group cursor-pointer" onClick={() => setSelectedStudent(student)}>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -370,12 +610,20 @@ export default function Students() {
           </div>
         )}
 
-        {!isLoadingStudents && filteredStudents.length === 0 && (
+        {!isLoadingStudents && processedStudents.length === 0 && (
           <div className="p-12 text-center">
             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">
               <Search size={32} />
             </div>
             <p className="text-slate-500 font-medium">No encontramos alumnos con ese criterio.</p>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={handleClearFilters}
+                className="mt-3 text-sm text-gb-primary font-bold hover:underline"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
         )}
       </div>

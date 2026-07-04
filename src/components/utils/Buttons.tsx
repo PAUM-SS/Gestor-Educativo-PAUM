@@ -62,17 +62,17 @@ const BUTTON_CONFIG: Record<ButtonKey, ButtonConfig> = {
 };
 
 export function Button({ buttonConfig, onClick, loading, label, className = '' }: ButtonProps) {
-    const config = BUTTON_CONFIG[buttonConfig];
-    const icon = loading ? loadingIcon : config.icon;
+  const config = BUTTON_CONFIG[buttonConfig];
+  const icon = loading ? loadingIcon : config.icon;
 
-    return (
-      <button
-        onClick={onClick}
-        disabled={loading}
-        className={`${config.className} ${className} disabled:opacity-60`}
-      >
-        {icon}
-        {label ?? config.label}
-      </button>
-    );
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className={`${config.className} ${className} disabled:opacity-60`}
+    >
+      {icon}
+      {label ?? config.label}
+    </button>
+  );
 }
