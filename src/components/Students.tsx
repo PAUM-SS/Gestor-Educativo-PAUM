@@ -99,6 +99,12 @@ export default function Students() {
 
   // Estado para el modal de confirmación de borrado
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // ─── Estado edición de ficha de alumno ───────────────────────────────────
+  const [isEditingStudent, setIsEditingStudent] = useState(false);
+  const [editStudentDraft, setEditStudentDraft] = useState<Partial<Student>>({});
+  const { loading: isUpdating, execute: executeUpdate } = useApiError();
+
   // ─── Estado filtros y panel ───────────────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
@@ -233,6 +239,31 @@ export default function Students() {
     setShowFilters(false);
   };
 
+  // ─── Edición de ficha de alumno ──────────────────────────────────────────
+  const handleStartEdit = () => {
+    if (!selectedStudent) return;
+    setEditStudentDraft({ ...selectedStudent });
+    setIsEditingStudent(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingStudent(false);
+    setEditStudentDraft({});
+  };
+
+  const handleSaveStudentEdit = async () => {
+    if (!selectedStudent) return;
+    const updated = await executeUpdate(
+      () => studentService.updateStudent(selectedStudent.id, editStudentDraft),
+      'No se pudo actualizar el expediente. Intenta de nuevo.'
+    );
+    if (updated) {
+      setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
+      setSelectedStudent(updated);
+      setIsEditingStudent(false);
+      setEditStudentDraft({});
+      showToast('Expediente actualizado correctamente.', 'success');
+    }
   };
 
   const handleKardexClick = () => fileInputRef.current?.click();
@@ -784,113 +815,343 @@ export default function Students() {
       {/* Modal: Ficha del alumno */}
       {selectedStudent && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+
+            {/* ── Header ── */}
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-xl font-display font-bold text-slate-800">Ficha Técnica del Alumno</h2>
-              <button onClick={() => setSelectedStudent(null)} className="btn-icon text-slate-400 hover:text-slate-600">
+              <div>
+                <h2 className="text-xl font-display font-bold text-slate-800">Ficha Técnica del Alumno</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5 uppercase tracking-widest">
+                  {isEditingStudent ? 'Modo Edición' : 'Expediente Académico'}
+                </p>
+              </div>
+              <button
+                onClick={() => { setSelectedStudent(null); handleCancelEdit(); }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
                 <X size={20} />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto">
-              <div className="flex gap-6 items-start mb-6">
-                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-2xl shrink-0">
+
+            {/* ── Body ── */}
+            <div className="p-6 overflow-y-auto space-y-6">
+
+              {/* ── Sección: Datos del alumno ── */}
+              <div className="flex gap-5 items-start">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-700 font-bold text-2xl shrink-0 border border-blue-100">
                   {selectedStudent.name.charAt(0)}
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-slate-900">{selectedStudent.name}</h3>
-                  <p className="text-slate-500 font-mono">{selectedStudent.enrollmentId} • {selectedStudent.email}</p>
+                <div className="flex-1 min-w-0">
+                  {/* Nombre + badge de estado en misma línea */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {isEditingStudent ? (
+                      <input
+                        value={editStudentDraft.name ?? ''}
+                        onChange={e => setEditStudentDraft(d => ({ ...d, name: e.target.value }))}
+                        className="flex-1 min-w-0 text-xl font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none"
+                      />
+                    ) : (
+                      <h3 className="text-2xl font-bold text-slate-900 truncate">{selectedStudent.name}</h3>
+                    )}
+                    <span className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${selectedStudent.alert ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                      {selectedStudent.alert ? 'En riesgo' : 'Al corriente'}
+                    </span>
+                  </div>
+
+                  {/* Matrícula + email */}
+                  <p className="text-slate-500 font-mono text-sm mt-0.5">
+                    {selectedStudent.enrollmentId}
+                    {isEditingStudent ? (
+                      <input
+                        type="email"
+                        value={editStudentDraft.email ?? ''}
+                        onChange={e => setEditStudentDraft(d => ({ ...d, email: e.target.value }))}
+                        className="ml-2 text-sm bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none font-sans"
+                      />
+                    ) : (
+                      <span className="ml-2">• {selectedStudent.email}</span>
+                    )}
+                  </p>
+
+                  {/* Chips: Cohorte, Semestre, Tipo, Avance */}
                   <div className="flex flex-wrap gap-2 mt-2">
-                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold">Semestre: {selectedStudent.semester}</span>
-                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold">Cohorte: {selectedStudent.cohort}</span>
+                    {/* Cohorte primero */}
+                    {isEditingStudent ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Cohorte</span>
+                        <input
+                          value={editStudentDraft.cohort ?? ''}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, cohort: e.target.value }))}
+                          className="w-32 text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:ring-2 focus:ring-gb-primary/20 outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <span className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-xs font-bold">
+                        Cohorte: {selectedStudent.cohort}
+                      </span>
+                    )}
+                    {/* Semestre */}
+                    {isEditingStudent ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Semestre</span>
+                        <input
+                          type="number" min="1" max="12"
+                          value={editStudentDraft.semester ?? 1}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, semester: Number(e.target.value) }))}
+                          className="w-16 text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:ring-2 focus:ring-gb-primary/20 outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
+                        {selectedStudent.semester}º Semestre
+                      </span>
+                    )}
                     {selectedStudent.kardex?.extracted?.studentStatusLabel && (
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold">
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
                         Tipo: {selectedStudent.kardex.extracted.studentStatusLabel}
                       </span>
                     )}
                     {selectedStudent.kardex?.extracted?.progressPercent !== undefined && (
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold">
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
                         Avance: {selectedStudent.kardex.extracted.progressPercent}%
                       </span>
                     )}
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${selectedStudent.alert ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {selectedStudent.alert ? 'RIESGO POR PERMANENCIA / REPROBADAS' : 'AL CORRIENTE'}
-                    </span>
                   </div>
-                  {selectedStudent.kardex?.parsedAt && (
-                    <p className="text-[11px] text-slate-400 mt-2">
-                      Kardex procesado: {new Date(selectedStudent.kardex.parsedAt).toLocaleString()}
-                    </p>
-                  )}
-                  {selectedStudent.kardex && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedStudent.kardex.sourcePdfUrl && (
-                        <a href={selectedStudent.kardex.sourcePdfUrl} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
-                          <ExternalLink size={14} /> Ver PDF
-                        </a>
-                      )}
-                      {selectedStudent.kardex.sourceOcrImageUrl && (
-                        <a href={selectedStudent.kardex.sourceOcrImageUrl} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
-                          <ExternalLink size={14} /> Ver imagen OCR
-                        </a>
-                      )}
-                      {selectedStudent.kardex.sourceTextUrl && (
-                        <a href={selectedStudent.kardex.sourceTextUrl} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
-                          <FileText size={14} /> Ver texto extraído ({selectedStudent.kardex.extractedTextLength})
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {selectedStudent.alert && selectedStudent.kardex?.riskReasons?.length ? (
-                    <div className="mt-3 bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-800">
-                      <div className="font-bold mb-1 flex items-center gap-2">
-                        <AlertTriangle size={14} /> Motivos de riesgo
+
+                  {/* Campos editables: Estatus, Tutor, GPA, Asistencia */}
+                  {isEditingStudent && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Estatus</label>
+                        <select
+                          value={editStudentDraft.status ?? 'activo'}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, status: e.target.value as Student['status'] }))}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none"
+                        >
+                          <option value="activo">Activo</option>
+                          <option value="egresado">Egresado</option>
+                          <option value="baja">Baja</option>
+                          <option value="en_riesgo">En Riesgo</option>
+                          <option value="en_rotacion">En Rotación</option>
+                          <option value="servicio_social">Servicio Social</option>
+                          <option value="práctica_profesional">Práctica Profesional</option>
+                        </select>
                       </div>
-                      {selectedStudent.kardex.riskReasons.map((reason, idx) => (
-                        <div key={idx}>• {reason}</div>
-                      ))}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Tutor Asignado</label>
+                        <input
+                          value={editStudentDraft.tutor ?? ''}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, tutor: e.target.value }))}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Promedio (GPA)</label>
+                        <input
+                          type="number" step="0.01" min="0" max="10"
+                          value={editStudentDraft.gpa ?? 0}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, gpa: Number(e.target.value) }))}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Asistencia (%)</label>
+                        <input
+                          type="number" step="1" min="0" max="100"
+                          value={editStudentDraft.attendance ?? 100}
+                          onChange={e => setEditStudentDraft(d => ({ ...d, attendance: Number(e.target.value) }))}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-gb-primary/20 focus:border-gb-primary outline-none"
+                        />
+                      </div>
                     </div>
-                  ) : null}
+                  )}
+
+                  {/* Info de kardex y motivos de riesgo (solo en modo vista) */}
+                  {!isEditingStudent && (
+                    <>
+                      {selectedStudent.kardex?.parsedAt && (
+                        <p className="text-[11px] text-slate-400 mt-2">
+                          Kardex procesado: {new Date(selectedStudent.kardex.parsedAt).toLocaleString()}
+                        </p>
+                      )}
+                      {selectedStudent.kardex && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {selectedStudent.kardex.sourcePdfUrl && (
+                            <a href={selectedStudent.kardex.sourcePdfUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
+                              <ExternalLink size={13} /> Ver PDF
+                            </a>
+                          )}
+                          {selectedStudent.kardex.sourceOcrImageUrl && (
+                            <a href={selectedStudent.kardex.sourceOcrImageUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
+                              <ExternalLink size={13} /> Ver imagen OCR
+                            </a>
+                          )}
+                          {selectedStudent.kardex.sourceTextUrl && (
+                            <a href={selectedStudent.kardex.sourceTextUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
+                              <FileText size={13} /> Ver texto extraído ({selectedStudent.kardex.extractedTextLength})
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {selectedStudent.alert && selectedStudent.kardex?.riskReasons?.length ? (
+                        <div className="mt-3 bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-800">
+                          <div className="font-bold mb-1 flex items-center gap-2">
+                            <AlertTriangle size={14} /> Motivos de riesgo
+                          </div>
+                          {selectedStudent.kardex.riskReasons.map((reason, idx) => (
+                            <div key={idx}>• {reason}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="space-y-4">
-                <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                  <CheckCircle size={18} className="text-emerald-500" /> Materias detectadas en Kardex
+
+              <div className="border-t border-slate-100" />
+
+              {/* ── Sección: Materias en curso ── */}
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <BookOpen size={17} className="text-gb-primary" />
+                  Materias en curso
                 </h4>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 grid grid-cols-2 gap-2 text-sm text-emerald-900">
+                <div className="rounded-xl overflow-hidden border border-slate-200">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-4 py-2.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">NRC</th>
+                        <th className="px-4 py-2.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Materia</th>
+                        <th className="px-4 py-2.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Docente</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-xs text-slate-400 italic">
+                          Sin inscripciones activas registradas. Esta sección se actualizará automáticamente cuando se vincule el calendario de materias al alumno.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ── Sección: Materias cursadas ── */}
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <BookCheck size={17} className="text-emerald-500" />
+                  Materias cursadas
+                </h4>
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
                   {(() => {
                     const modules = selectedStudent.kardex?.matchedModuleIds?.length
                       ? MOCK_MODULES.filter(m => selectedStudent.kardex!.matchedModuleIds.includes(m.id))
                       : MOCK_MODULES.filter(m => (m.semester !== 'Servicio' ? (m.semester as number) < selectedStudent.semester : false));
                     if (modules.length === 0) {
-                      return <div className="text-slate-500 italic text-xs col-span-2">Sin materias detectadas en el Kardex (o aún en primer semestre).</div>;
+                      return <p className="text-slate-400 italic text-xs">Sin materias detectadas en el Kardex (o aún en primer semestre).</p>;
                     }
-                    return modules.map(m => <div key={m.id}>• {m.title}</div>);
+                    return (
+                      <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-emerald-900">
+                        {modules.map(m => (
+                          <li key={m.id} className="flex items-start gap-1.5">
+                            <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
+                            <span>{m.title}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
                   })()}
                 </div>
-                <h4 className="font-bold text-slate-800 flex items-center gap-2 mt-4">
-                  <Clock size={18} className="text-amber-500" /> Materias no detectadas / pendientes
+              </div>
+
+              {/* ── Sección: Materias pendientes ── */}
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <BookX size={17} className="text-amber-500" />
+                  Materias pendientes
                 </h4>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 grid grid-cols-2 gap-2 text-sm text-amber-900">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
                   {(() => {
                     const modules = selectedStudent.kardex?.missingModuleIds?.length
                       ? MOCK_MODULES.filter(m => selectedStudent.kardex!.missingModuleIds.includes(m.id))
                       : MOCK_MODULES.filter(m => (m.semester === 'Servicio' || (m.semester as number) >= selectedStudent.semester));
-                    return modules.map(m => <div key={m.id}>• {m.title}</div>);
+                    if (modules.length === 0) {
+                      return <p className="text-slate-400 italic text-xs">No hay materias pendientes registradas.</p>;
+                    }
+                    return (
+                      <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-amber-900">
+                        {modules.map(m => (
+                          <li key={m.id} className="flex items-start gap-1.5">
+                            <span className="text-amber-400 mt-0.5 shrink-0">○</span>
+                            <span>{m.title}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
                   })()}
                 </div>
               </div>
+
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+
+            {/* ── Footer con Editar / Eliminar / Cerrar ── */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              {/* Izquierda: Eliminar */}
               <button
-                onClick={() => setSelectedStudent(null)}
-                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
+                onClick={() => {
+                  setSelectedStudent(null);
+                  handleCancelEdit();
+                  setConfirmDelete({ id: selectedStudent.id, name: selectedStudent.name });
+                }}
+                disabled={isUpdating}
+                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors disabled:opacity-50"
               >
-                Cerrar Expediente
+                <Trash2 size={16} />
+                Dar de baja
               </button>
+
+              {/* Derecha: Editar / Guardar + Cerrar */}
+              <div className="flex items-center gap-3">
+                {isEditingStudent ? (
+                  <>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveStudentEdit}
+                      disabled={isUpdating}
+                      className="flex items-center gap-2 px-5 py-2 bg-gb-primary text-white rounded-xl font-bold text-sm hover:bg-gb-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      Guardar cambios
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleStartEdit}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit size={16} />
+                    Editar
+                  </button>
+                )}
+                <button
+                  onClick={() => { setSelectedStudent(null); handleCancelEdit(); }}
+                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
+
           </div>
         </div>
       )}
