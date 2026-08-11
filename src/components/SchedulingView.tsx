@@ -29,6 +29,7 @@ import { ConfirmModal } from './ConfirmModal';
 import QuickAddFacultyModal from './QuickAddFacultyModal';
 import QuickAddModuleModal from './QuickAddModuleModal';
 import { Button } from './utils/Buttons';
+import { PanelFooter } from './utils/PanelFooter';
 
 export default function SchedulingView() {
     const { showToast } = useToast();
@@ -261,6 +262,12 @@ export default function SchedulingView() {
     const closePanel = () => {
         setSelectedClass(null);
         setIsEditing(false);
+    };
+
+    const handleCloseAddModal = () => {
+        setShowAddModal(false);
+        setEditForm({});
+        setScheduleDraft(buildEmptyDays());
     };
 
     const handleImportDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -503,7 +510,7 @@ export default function SchedulingView() {
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <Button
-                                        buttonConfig='close'
+                                        buttonConfig='closeIcon'
                                         onClick={closePanel}
                                     />
                                 </div>
@@ -527,12 +534,11 @@ export default function SchedulingView() {
                                                     NRC: {selectedClass.id}
                                                 </p>
                                             </div>
-                                            
-                                            <span className={`px-3 py-1 font-bold rounded-lg text-sm border ${
-                                                selectedClass.capacity > 0 && selectedClass.enrolled >= selectedClass.capacity
-                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
-                                            }`}>
+
+                                            <span className={`px-3 py-1 font-bold rounded-lg text-sm border ${selectedClass.capacity > 0 && selectedClass.enrolled >= selectedClass.capacity
+                                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                }`}>
                                                 {selectedClass.enrolled}/{selectedClass.capacity} inscritos
                                             </span>
                                         </div>
@@ -543,17 +549,16 @@ export default function SchedulingView() {
                                                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5 mb-1.5">
                                                     <Users size={12} /> Docente Asignado
                                                 </p>
-                                                <p className={`font-medium text-sm ${
-                                                    selectedClass.facultyName === 'Sin asignar'
-                                                        ? 'text-slate-400 italic'
-                                                        : 'text-slate-800'
-                                                }`}>
+                                                <p className={`font-medium text-sm ${selectedClass.facultyName === 'Sin asignar'
+                                                    ? 'text-slate-400 italic'
+                                                    : 'text-slate-800'
+                                                    }`}>
                                                     {selectedClass.facultyName}
                                                 </p>
                                                 {selectedClass.facultyId && (
-                                                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                    {selectedClass.facultyId}
-                                                </p>
+                                                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                        {selectedClass.facultyId}
+                                                    </p>
                                                 )}
                                             </div>
 
@@ -615,7 +620,7 @@ export default function SchedulingView() {
                                             </div>
                                         </div>
                                     </div>
-                                    ) : (
+                                ) : (
                                     // Vista de edición
                                     <div className="space-y-4">
                                         {/* NRC */}
@@ -778,34 +783,16 @@ export default function SchedulingView() {
                             </div>
 
                             {/* Footer del panel */}
-                            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
-                                <div className="flex gap-2">
-                                    {!isEditing ? (
-                                        <>
-                                            <Button
-                                                buttonConfig='edit'
-                                                onClick={handleEditClick}
-                                            />
-                                            <Button
-                                                buttonConfig='delete'
-                                                onClick={handleDeleteClick}
-                                                loading={isDeleting}
-                                            />
-                                        </>
-                                    ) : (
-                                        <Button
-                                            buttonConfig='save'
-                                            onClick={handleSaveEdit}
-                                            loading={isSaving}
-                                        />
-                                    )}
-                                </div>
-                                <Button
-                                    buttonConfig='cancel'
-                                    onClick={isEditing ? () => setIsEditing(false) : closePanel}
-                                    label={isEditing ? "Cancelar" : "Cerrar"}
-                                />
-                            </div>
+                            <PanelFooter
+                                isEditing={isEditing}
+                                onEdit={handleEditClick}
+                                onDelete={handleDeleteClick}
+                                onSave={handleSaveEdit}
+                                onClose={closePanel}
+                                onCancel={() => setIsEditing(false)}
+                                isDeleting={isDeleting}
+                                isSaving={isSaving}
+                            />
                         </motion.div>
                     </div>
                 )}
@@ -825,9 +812,10 @@ export default function SchedulingView() {
                                     <h3 className="text-lg font-bold text-slate-900">Registrar Nueva Sección</h3>
                                     <p className="text-[11px] text-slate-400 mt-0.5">Completa los datos de la sección académica</p>
                                 </div>
-                                <button onClick={() => { setShowAddModal(false); setEditForm({}); setScheduleDraft(buildEmptyDays()); }} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                    <X size={20} />
-                                </button>
+                                <Button
+                                    buttonConfig="closeIcon"
+                                    onClick={handleCloseAddModal}
+                                />
                             </div>
 
                             {/* Body */}

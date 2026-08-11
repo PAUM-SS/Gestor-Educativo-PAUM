@@ -12,13 +12,10 @@ import {
   CircleCheckBig,
   Trash2,
   UserPlus,
-  X,
   AlertTriangle,
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
-  Edit,
-  Save,
   BookOpen,
   BookCheck,
   BookX,
@@ -32,6 +29,7 @@ import { Student } from '@/shared/types';
 import { MOCK_MODULES } from '@/shared/constants';
 import { ConfirmModal } from './ConfirmModal';
 import { Button } from './utils/Buttons';
+import { PanelFooter } from './utils/PanelFooter';
 import { FilterPanel, FilterConfig } from './utils/FilterPanel';
 
 // ─── Tipos para ordenamiento ────────────────────────────────────────────────
@@ -354,6 +352,11 @@ export default function Students() {
       showToast(`Expediente de ${name} eliminado.`, 'success');
     }
   };
+
+  const handleCloseDetails = () => {
+    setSelectedStudent(null);
+    handleCancelEdit();
+  }
 
   const handleImportDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -825,12 +828,10 @@ export default function Students() {
                   {isEditingStudent ? 'Modo Edición' : 'Expediente Académico'}
                 </p>
               </div>
-              <button
-                onClick={() => { setSelectedStudent(null); handleCancelEdit(); }}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <Button
+                buttonConfig="closeIcon"
+                onClick={handleCloseDetails}
+              />
             </div>
 
             {/* ── Body ── */}
@@ -1099,58 +1100,20 @@ export default function Students() {
             </div>
 
             {/* ── Footer con Editar / Eliminar / Cerrar ── */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-              {/* Izquierda: Eliminar */}
-              <button
-                onClick={() => {
-                  setSelectedStudent(null);
-                  handleCancelEdit();
-                  setConfirmDelete({ id: selectedStudent.id, name: selectedStudent.name });
-                }}
-                disabled={isUpdating}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors disabled:opacity-50"
-              >
-                <Trash2 size={16} />
-                Dar de baja
-              </button>
-
-              {/* Derecha: Editar / Guardar + Cerrar */}
-              <div className="flex items-center gap-3">
-                {isEditingStudent ? (
-                  <>
-                    <button
-                      onClick={handleCancelEdit}
-                      disabled={isUpdating}
-                      className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleSaveStudentEdit}
-                      disabled={isUpdating}
-                      className="flex items-center gap-2 px-5 py-2 bg-gb-primary text-white rounded-xl font-bold text-sm hover:bg-gb-primary/90 transition-colors disabled:opacity-50"
-                    >
-                      {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                      Guardar cambios
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleStartEdit}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors"
-                  >
-                    <Edit size={16} />
-                    Editar
-                  </button>
-                )}
-                <button
-                  onClick={() => { setSelectedStudent(null); handleCancelEdit(); }}
-                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
+            <PanelFooter
+              isEditing={isEditingStudent}
+              onEdit={handleStartEdit}
+              onDelete={() => {
+                setSelectedStudent(null);
+                handleCancelEdit();
+                setConfirmDelete({ id: selectedStudent.id, name: selectedStudent.name });
+              }}
+              deleteLabel="Dar de baja"
+              onSave={handleSaveStudentEdit}
+              isSaving={isUpdating}
+              onCancel={handleCancelEdit}
+              onClose={() => { setSelectedStudent(null); handleCancelEdit(); }}
+            />
 
           </div>
         </div>

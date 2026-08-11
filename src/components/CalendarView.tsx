@@ -5,11 +5,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
-  Info,
   Sun,
-  FileText,
   Loader2,
-  X,
   Clock,
   CalendarDays,
 } from 'lucide-react';
@@ -17,6 +14,7 @@ import { AcademicEvent } from '@/shared/types';
 import { calendarService } from '../services/calendarService';
 import { useApiError } from '../hooks/useApiError';
 import { useToast } from '../context/ToastContext';
+import { Button } from './utils/Buttons';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -114,9 +112,11 @@ function EventPopup({ event, onClose }: { event: AcademicEvent; onClose: () => v
     >
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border-l-4 ${meta.border.replace('border', 'border-l')}`}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-          <X size={18} />
-        </button>
+        <Button
+          buttonConfig="closeIcon"
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+        />
         <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold mb-3 ${meta.bg} ${meta.text}`}>
           <div className={`w-2 h-2 rounded-full ${meta.dot}`} />
           {meta.label}

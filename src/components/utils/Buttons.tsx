@@ -1,6 +1,6 @@
 import { Edit, Trash2, Save, X, Plus, Loader2, UploadCloud, DownloadCloud } from 'lucide-react';
 
-type ButtonKey = 'edit' | 'delete' | 'save' | 'cancel' | 'add' | 'import' | 'export' | 'close';
+type ButtonKey = 'edit' | 'delete' | 'save' | 'close' | 'add' | 'import' | 'export' | 'closeIcon';
 
 const loadingIcon = <Loader2 size={18} className="animate-spin" />;
 
@@ -34,7 +34,7 @@ const BUTTON_CONFIG: Record<ButtonKey, ButtonConfig> = {
     className: 'flex items-center gap-2 px-6 py-2 bg-gb-primary text-white rounded-xl font-bold text-sm hover:bg-gb-primary/90 transition-colors',
     icon: <Save size={16} />,
   },
-  cancel: {
+  close: {
     label: 'Cerrar',
     className: 'px-5 py-2 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-300 transition-colors',
     icon: null,
@@ -54,10 +54,10 @@ const BUTTON_CONFIG: Record<ButtonKey, ButtonConfig> = {
     className: 'flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-emerald-200 transition-all shadow-sm',
     icon: <DownloadCloud size={18} className="text-gb-primary" />,
   },
-  close: {
+  closeIcon: {
     label: '',
-    className: 'text-slate-400 hover:text-slate-600 transition-colors',
-    icon: <X size={20} />,
+    className: 'p-1 text-slate-400 hover:text-slate-600 transition-colors',
+    icon: <X size={24} />,
   },
 };
 

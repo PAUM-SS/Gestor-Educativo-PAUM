@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, Hospital } from 'lucide-react';
 import { ClinicalField } from '@/shared/types';
+import { Button } from './utils/Buttons';
 
 interface ClinicalFieldModalProps {
   isOpen: boolean;
@@ -69,13 +70,12 @@ export default function ClinicalFieldModal({ isOpen, isSaving = false, initialDa
           className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100"
         >
           <div className="bg-gb-secondary text-white p-6 relative">
-            <button
+            <Button
+              buttonConfig="closeIcon"
               onClick={onClose}
-              disabled={isSaving}
+              loading={isSaving}
               className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
-            >
-              <X size={24} />
-            </button>
+            />
             <div className="flex items-center gap-3 mb-1">
               <Hospital size={24} className="text-gb-accent" />
               <h2 className="text-xl font-bold font-display">
