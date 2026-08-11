@@ -19,6 +19,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const [modules, setModules] = useState<Module[]>([]);
@@ -51,9 +52,14 @@ function AppContent() {
 
   return (
     <div className="flex min-h-screen bg-gb-bg font-sans">
-      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      <Sidebar
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        collapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed(prev => !prev)}
+      />
 
-      <div className="flex-1 ml-60 flex flex-col">
+      <div className={`flex-1 flex flex-col transition-[margin] duration-300 ease-out ${isSidebarCollapsed ? 'ml-20' : 'ml-60'}`}>
         {/* Geometric Balance Header */}
         <header className="h-20 bg-white border-b-2 border-gb-primary flex items-center justify-between px-6 md:px-10 sticky top-0 z-40 lg:hidden xl:flex">
           <div className="flex items-center gap-4">
