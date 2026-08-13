@@ -3,8 +3,8 @@ import { AcademicSection, AcademicSectionWithNames, SectionDailyRecord } from "@
 import { parseJSON, normalizeSection, normalizeSectionDailyRecord, normalizeScheduleDay } from "../transforms";
 
 export class ScheduleRepository {
-    constructor(private db: Database) {}
-    
+    constructor(private db: Database) { }
+
     getSections(): AcademicSectionWithNames[] {
         return this.db.prepare(`
             SELECT
@@ -106,17 +106,17 @@ export class ScheduleRepository {
     async addSection(academicSection: AcademicSection) {
         const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(academicSection.id);
         if (existing) return null;
-    
+
         const s = normalizeSection(academicSection);
         this.db.prepare(`
             INSERT INTO sections 
             (id, moduleId, facultyId, capacity, enrolled, schedule, comments, adjustment) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(s.id, s.moduleId, s.facultyId || null, s.capacity, s.enrolled, JSON.stringify(s.schedule), s.comments ?? null, s.adjustment ?? null);
-    
+
         return s;
     }
-    
+
     async updateSection(id: string, updates: Partial<AcademicSection>) {
         const row = this.db.prepare("SELECT * FROM sections WHERE id = ?").get(id) as any;
         if (!row) return null;
@@ -139,11 +139,11 @@ export class ScheduleRepository {
 
         return updated;
     }
-    
+
     async deleteSection(id: string) {
         const existing = this.db.prepare("SELECT id FROM sections WHERE id = ?").get(id) as { id: string } | undefined;
         if (!existing) return false;
-    
+
         const tx = this.db.transaction(() => {
             // Actualizar referencias ANTES de eliminar para respetar llaves foráneas
             this.db.prepare("DELETE FROM sections WHERE id = ?").run(id);
@@ -152,7 +152,7 @@ export class ScheduleRepository {
 
         return true;
     }
-    
+
     async importSections(sections: AcademicSection[]) {
         let created = 0;
         let updated = 0;
@@ -206,16 +206,26 @@ export class ScheduleRepository {
 
         return { created, updated, total, sections: allSections };
     }
-    
+
     getSectionStudents(sectionId: string): string[] {
         const rows = this.db.prepare("SELECT studentId FROM section_enrollments WHERE sectionId = ?").all(sectionId) as any[];
         return rows.map(r => r.studentId);
     }
-    
+
+    getDetailedSectionStudents(sectionId: string): { id: string; enrollmentId: string; name: string }[] {
+        return this.db.prepare(`
+            SELECT s.id, s.enrollmentId, s.name
+            FROM students s
+            JOIN section_enrollments se ON se.studentId = s.id
+            WHERE se.sectionId = ?
+            ORDER BY s.name ASC
+        `).all(sectionId) as { id: string; enrollmentId: string; name: string }[];
+    }
+
     async addEnrollment(studentId: string, sectionId: string) {
         const existing = this.db.prepare("SELECT studentId FROM section_enrollments WHERE studentId = ? AND sectionId = ?").get(studentId, sectionId);
         if (existing) return false;
-    
+
         const tx = this.db.transaction(() => {
             this.db.prepare("INSERT INTO section_enrollments (studentId, sectionId, enrolledAt) VALUES (?, ?, ?)").run(studentId, sectionId, new Date().toISOString());
             this.db.prepare("UPDATE sections SET enrolled = enrolled + 1 WHERE id = ?").run(sectionId);
@@ -224,7 +234,7 @@ export class ScheduleRepository {
 
         return true;
     }
-    
+
     async removeEnrollment(studentId: string, sectionId: string) {
         let changed = false;
         const tx = this.db.transaction(() => {
@@ -246,7 +256,7 @@ export class ScheduleRepository {
     ) {
         const recordId = `${sectionId}:${date}`;
         const row = this.db.prepare("SELECT * FROM section_daily_records WHERE id = ?").get(recordId) as any;
-    
+
         const baseRecord: SectionDailyRecord = row ? { ...row, facultyPresent: Boolean(row.facultyPresent), signature: Boolean(row.signature), absentStudentIds: JSON.parse(row.absentStudentIds || "[]") } : {
             id: recordId,
             sectionId,
@@ -256,13 +266,13 @@ export class ScheduleRepository {
             signature: false,
             updatedAt: new Date().toISOString(),
         };
-    
+
         const nextRecord = normalizeSectionDailyRecord({
             ...baseRecord,
             ...updates,
             updatedAt: new Date().toISOString(),
         });
-    
+
         if (row) {
             this.db.prepare(`UPDATE section_daily_records SET facultyPresent=?, absentStudentIds=?, justification=?, justificationType=?, topic=?, signature=?, updatedAt=? WHERE id=?`).run(nextRecord.facultyPresent ? 1 : 0, JSON.stringify(nextRecord.absentStudentIds), nextRecord.justification, nextRecord.justificationType, nextRecord.topic, nextRecord.signature ? 1 : 0, nextRecord.updatedAt, recordId);
         } else {

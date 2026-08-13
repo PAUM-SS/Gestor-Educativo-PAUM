@@ -61,5 +61,11 @@ export const SchedulerService = {
     const response = await fetch('/api/sections/export');
     if (!response.ok) throw new Error('Error al exportar secciones');
     return await response.blob();
+  },
+
+  getClassStudents: async (id: string): Promise<{ id: string; enrollmentId: string; name: string }[]> => {
+    const response = await fetch(`/api/sections/${id}/students`);
+    if (!response.ok) throw new Error('Error al cargar alumnos de la sección');
+    return await response.json();
   }
 };

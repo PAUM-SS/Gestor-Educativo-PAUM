@@ -10,9 +10,17 @@ export const sectionsRouter = Router();
 
 sectionsRouter.get('/', (_req, res) => {
     try {
-        res.json(db.getSections());
+        res.json(db.schedule.getSections());
     } catch (e) {
         res.status(500).json({ error: 'DB not ready' });
+    }
+});
+
+sectionsRouter.get('/:id/students', (req, res) => {
+    try {
+        res.json(db.schedule.getDetailedSectionStudents(req.params.id));
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch section students' });
     }
 });
 
@@ -25,12 +33,12 @@ sectionsRouter.post('/', async (req, res) => {
             return;
         }
 
-        const existing = db.getSections().find((s) => s.id === newSection.id);
+        const existing = db.schedule.getSections().find((s) => s.id === newSection.id);
         if (existing) {
             res.status(409).json({ error: 'Section already exists' });
             return;
         }
-        const created = await db.addSection(newSection);
+        const created = await db.schedule.addSection(newSection);
         if (created) res.status(201).json(created);
         else res.status(500).json({ error: 'Failed to create section' });
     } catch (e) {
@@ -40,7 +48,7 @@ sectionsRouter.post('/', async (req, res) => {
 
 sectionsRouter.put('/:id', async (req, res) => {
     try {
-        const updated = await db.updateSection(req.params.id, req.body);
+        const updated = await db.schedule.updateSection(req.params.id, req.body);
         if (updated) res.json(updated);
         else res.status(404).json({ error: 'Section not found' });
     } catch (e) {
@@ -50,7 +58,7 @@ sectionsRouter.put('/:id', async (req, res) => {
 
 sectionsRouter.delete('/:id', async (req, res) => {
     try {
-        const success = await db.deleteSection(req.params.id);
+        const success = await db.schedule.deleteSection(req.params.id);
         if (success) res.json({ success: true });
         else res.status(404).json({ error: 'Section not found' });
     } catch (e) {
@@ -75,7 +83,7 @@ sectionsRouter.post('/import', upload.single('sectionFile'), async (req, res) =>
                     );
                     if (parsed.length > 0) debugHeaders = Object.keys(parsed[0]);
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             res.status(400).json({
                 error: 'No se encontraron registros válidos. Verifica las columnas del archivo.',
@@ -83,7 +91,7 @@ sectionsRouter.post('/import', upload.single('sectionFile'), async (req, res) =>
             });
             return;
         }
-        const result = await db.importSections(records);
+        const result = await db.schedule.importSections(records);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to import sections data' });
@@ -92,12 +100,12 @@ sectionsRouter.post('/import', upload.single('sectionFile'), async (req, res) =>
 
 sectionsRouter.get('/export', async (_req, res) => {
     try {
-        const rows = db.getExportSections();
+        const rows = db.schedule.getExportSections();
         const workbook = xlsx.utils.book_new();
         const worksheet = xlsx.utils.json_to_sheet(rows);
         xlsx.utils.book_append_sheet(workbook, worksheet, 'Programación Académica');
         const buffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        
+
         res.setHeader(
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

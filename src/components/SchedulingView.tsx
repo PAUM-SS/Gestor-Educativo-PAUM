@@ -48,6 +48,8 @@ export default function SchedulingView() {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<AcademicSectionWithNames>>({});
     const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+    const [enrolledStudents, setEnrolledStudents] = useState<{ id: string; enrollmentId: string; name: string }[]>([]);
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
 
     // --- Catálogos para selects ---
     const [modulesCatalog, setModulesCatalog] = useState<Module[]>([]);
@@ -95,6 +97,25 @@ export default function SchedulingView() {
         void loadClasses();
         void loadCatalogs();
     }, []);
+
+    useEffect(() => {
+        if (selectedClass) {
+            setIsLoadingStudents(true);
+            SchedulerService.getClassStudents(selectedClass.id)
+                .then(data => {
+                    setEnrolledStudents(data);
+                })
+                .catch(err => {
+                    console.error("Error loading students:", err);
+                    showToast("No se pudo cargar la lista de alumnos inscritos", "error");
+                })
+                .finally(() => {
+                    setIsLoadingStudents(false);
+                });
+        } else {
+            setEnrolledStudents([]);
+        }
+    }, [selectedClass]);
 
     // --- Helpers ---
     // Normaliza el formato de tiempo a HH:MM para compatibilidad con time inputs
@@ -618,6 +639,43 @@ export default function SchedulingView() {
                                                     );
                                                 })}
                                             </div>
+                                        </div>
+
+                                        {/* Alumnos inscritos */}
+                                        <div className="border-t border-slate-100 pt-4">
+                                            <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                <Users size={14} className="text-blue-500" /> Alumnos inscritos
+                                            </h4>
+
+                                            {isLoadingStudents ? (
+                                                <div className="flex items-center gap-2 text-sm text-slate-500 py-4 justify-center">
+                                                    <Loader2 size={16} className="animate-spin text-blue-500" />
+                                                    <span>Cargando alumnos...</span>
+                                                </div>
+                                            ) : enrolledStudents.length === 0 ? (
+                                                <p className="text-xs text-slate-400 italic py-2 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                                    No hay alumnos inscritos en esta clase.
+                                                </p>
+                                            ) : (
+                                                <div className="overflow-hidden border border-slate-100 rounded-xl max-h-60 overflow-y-auto">
+                                                    <table className="w-full text-left border-collapse text-xs">
+                                                        <thead className="sticky top-0 bg-slate-50 z-10">
+                                                            <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                                                                <th className="px-4 py-2 w-1/3">Matrícula</th>
+                                                                <th className="px-4 py-2">Nombre</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                                                            {enrolledStudents.map(student => (
+                                                                <tr key={student.enrollmentId || student.id} className="hover:bg-slate-50/50">
+                                                                    <td className="px-4 py-2 font-mono font-medium">{student.enrollmentId || '—'}</td>
+                                                                    <td className="px-4 py-2">{student.name || '—'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (

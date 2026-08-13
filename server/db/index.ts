@@ -153,32 +153,9 @@ class AppDatabase {
   }
 
   // --- Schedule --- 
-  getSections() {
-    return this.schedule.getSections();
-  }
-
-  getExportSections() {
-    return this.schedule.getExportSections();
-  }
 
   getSectionDailyRecords() {
     return this.schedule.getSectionDailyRecords();
-  }
-
-  addSection(academicSection: AcademicSection) {
-    return this.schedule.addSection(academicSection);
-  }
-
-  updateSection(id: string, updates: Partial<AcademicSection>) {
-    return this.schedule.updateSection(id, updates);
-  }
-
-  deleteSection(id: string) {
-    return this.schedule.deleteSection(id);
-  }
-
-  importSections(sections: AcademicSection[]) {
-    return this.schedule.importSections(sections);
   }
 
   getSectionStudents(sectionId: string) {
