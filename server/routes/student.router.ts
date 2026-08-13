@@ -11,7 +11,7 @@ export const studentsRouter = Router();
 
 studentsRouter.get('/', (_req, res) => {
   try {
-    res.json(db.getStudents());
+    res.json(db.students.getStudents());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
@@ -19,7 +19,7 @@ studentsRouter.get('/', (_req, res) => {
 
 studentsRouter.post('/', async (req, res) => {
   try {
-    const created = await db.addStudent(req.body);
+    const created = await db.students.addStudent(req.body);
     if (created) res.status(201).json(created);
     else res.status(500).json({ error: 'Failed to create student' });
   } catch (e) {
@@ -29,7 +29,7 @@ studentsRouter.post('/', async (req, res) => {
 
 studentsRouter.put('/:id', async (req, res) => {
   try {
-    const updated = await db.updateStudent(req.params.id, req.body);
+    const updated = await db.students.updateStudent(req.params.id, req.body);
     if (updated) res.json(updated);
     else res.status(404).json({ error: 'Student not found' });
   } catch (e) {
@@ -39,7 +39,7 @@ studentsRouter.put('/:id', async (req, res) => {
 
 studentsRouter.delete('/:id', async (req, res) => {
   try {
-    const success = await db.deleteStudent(req.params.id);
+    const success = await db.students.deleteStudent(req.params.id);
     if (success) res.json({ success: true });
     else res.status(404).json({ error: 'Student not found' });
   } catch (e) {
@@ -76,10 +76,10 @@ studentsRouter.post('/upload-kardex', upload.single('kardex'), async (req, res) 
       cohort, finalStatus, alert, kardex,
     } = result.data;
 
-    const existing = db.getStudents().find((s) => s.enrollmentId === matricula);
+    const existing = db.students.getStudents().find((s) => s.enrollmentId === matricula);
 
     if (existing) {
-      const updated = await db.updateStudent(existing.id, {
+      const updated = await db.students.updateStudent(existing.id, {
         name: extractedName,
         enrollmentId: matricula,
         gpa,
@@ -108,7 +108,7 @@ studentsRouter.post('/upload-kardex', upload.single('kardex'), async (req, res) 
       kardex,
     };
 
-    const added = await db.addStudent(studentToCreate);
+    const added = await db.students.addStudent(studentToCreate);
     res.json({ action: 'created', student: added });
   } catch (error) {
     console.error('PDF Parse Error:', error);
@@ -118,8 +118,8 @@ studentsRouter.post('/upload-kardex', upload.single('kardex'), async (req, res) 
 
 studentsRouter.post('/import', upload.single('studentsFile'), async (req, res) => {
   if (!req.file) {
-      res.status(400).json({ error: 'No file uploaded' });
-      return;
+    res.status(400).json({ error: 'No file uploaded' });
+    return;
   }
   try {
     const records = parseStudentImport(req.file);
@@ -133,7 +133,7 @@ studentsRouter.post('/import', upload.single('studentsFile'), async (req, res) =
           );
           if (parsed.length > 0) debugHeaders = Object.keys(parsed[0]);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       res.status(400).json({
         error: 'No se encontraron registros válidos. Verifica las columnas del archivo.',
@@ -155,7 +155,7 @@ studentsRouter.get('/export', async (_req, res) => {
     const worksheet = xlsx.utils.json_to_sheet(rows);
     xlsx.utils.book_append_sheet(workbook, worksheet, 'Cohorte Estudiantil');
     const buffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-    
+
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

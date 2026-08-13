@@ -5,7 +5,7 @@ export const sectionRecordsRouter = Router();
 
 sectionRecordsRouter.get('/', (_req, res) => {
   try {
-    res.json(db.getSectionDailyRecords());
+    res.json(db.schedule.getSectionDailyRecords());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
@@ -20,7 +20,7 @@ sectionRecordsRouter.patch('/:sectionId/:date', async (req, res) => {
   }
 
   try {
-    const updated = await db.upsertSectionDailyRecord(sectionId, date, {
+    const updated = await db.schedule.upsertSectionDailyRecord(sectionId, date, {
       facultyPresent: req.body?.facultyPresent,
       absentStudentIds: Array.isArray(req.body?.absentStudentIds)
         ? req.body.absentStudentIds

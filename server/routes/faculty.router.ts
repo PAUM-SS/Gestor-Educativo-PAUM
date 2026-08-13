@@ -9,7 +9,7 @@ export const facultyRouter = Router();
 
 facultyRouter.get('/', (_req, res) => {
     try {
-        res.json(db.getFaculty());
+        res.json(db.faculty.getFaculty());
     } catch (e) {
         res.status(500).json({ error: 'DB not ready' });
     }
@@ -23,12 +23,12 @@ facultyRouter.post('/', async (req, res) => {
             res.status(400).json({ error: 'Faculty id and name are required' });
             return;
         }
-        const existing = db.getFaculty().find((m) => m.id === newFaculty.id);
+        const existing = db.faculty.getFaculty().find((m) => m.id === newFaculty.id);
         if (existing) {
             res.status(409).json({ error: 'Faculty already exists' });
             return;
         }
-        const created = await db.addFaculty(newFaculty);
+        const created = await db.faculty.addFaculty(newFaculty);
         if (created) res.status(201).json(created);
         else res.status(500).json({ error: 'Failed to create faculty' });
     } catch (e) {
@@ -38,7 +38,7 @@ facultyRouter.post('/', async (req, res) => {
 
 facultyRouter.put('/:id', async (req, res) => {
     try {
-        const updated = await db.updateFaculty(req.params.id, req.body);
+        const updated = await db.faculty.updateFaculty(req.params.id, req.body);
         if (updated) res.json(updated);
         else res.status(404).json({ error: 'Faculty not found' });
     } catch (e) {
@@ -48,7 +48,7 @@ facultyRouter.put('/:id', async (req, res) => {
 
 facultyRouter.delete('/:id', async (req, res) => {
     try {
-        const success = await db.deleteFaculty(req.params.id);
+        const success = await db.faculty.deleteFaculty(req.params.id);
         if (success) res.json({ success: true });
         else res.status(404).json({ error: 'Faculty not found' });
     } catch (e) {
@@ -69,7 +69,7 @@ facultyRouter.post('/import', upload.single('facultyFile'), async (req, res) => 
             res.status(400).json({ error: 'No valid faculty records found in the file' });
             return;
         }
-        const result = await db.importFaculty(records);
+        const result = await db.faculty.importFaculty(records);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to import faculty data' });

@@ -269,40 +269,25 @@ export default function Students() {
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setUploadState('uploading');
-    const formData = new FormData();
-    formData.append('kardex', file);
 
-    try {
-      const response = await fetch('/api/students/upload-kardex', {
-        method: 'POST',
-        body: formData,
-      });
+    const result = await executeAdd(
+      () => studentService.parseKardex(file),
+      'No se pudo procesar el Kardex. Intenta de nuevo.'
+    );
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.action === 'created') {
-          setStudents(prev => [result.student, ...prev]);
-        } else if (result.action === 'updated') {
-          setStudents(prev => prev.map(s => s.id === result.student.id ? result.student : s));
-        }
-        setUploadState('success');
+    if (result) {
+      if (result.action === 'created') {
+        setStudents(prev => [result.student, ...prev]);
+      } else if (result.action === 'updated') {
+        setStudents(prev => prev.map(s => s.id === result.student.id ? result.student : s));
         showToast('Kardex procesado y expediente actualizado.', 'success');
       } else {
         setUploadState('idle');
-        const errBody = await response.json().catch(() => null);
-        const message = errBody?.error || 'No se pudo procesar el Kardex.';
-
-        showToast(message, 'error');
       }
-    } catch {
-      setUploadState('idle');
-      showToast('Error de conexión al procesar el Kardex.', 'error');
+      setTimeout(() => setUploadState('idle'), 4000);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-
-    setTimeout(() => setUploadState('idle'), 4000);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleAddStudent = async (e: FormEvent<HTMLFormElement>) => {

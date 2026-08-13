@@ -4,9 +4,9 @@ import { Router } from 'express';
 import multer from 'multer';
 import { db } from '../db/index.ts';
 import {
-  parseCurriculumImport,
-  extractUnitsFromPDF,
-  extractLearningOutcome,
+    parseCurriculumImport,
+    extractUnitsFromPDF,
+    extractLearningOutcome,
 } from '../services/curriculum.service.ts';
 import { Module } from '@/shared/types.ts';
 
@@ -15,7 +15,7 @@ export const curriculumRouter = Router();
 
 curriculumRouter.get('/', (_req, res) => {
     try {
-        res.json(db.getModules());
+        res.json(db.curriculum.getModules());
     } catch (e) {
         res.status(500).json({ error: 'DB not ready' });
     }
@@ -28,7 +28,7 @@ curriculumRouter.post('/', async (req, res) => {
             res.status(400).json({ error: 'Module id or title are required' });
             return;
         }
-        const created = await db.addModule(newModule);
+        const created = await db.curriculum.addModule(newModule);
         if (created) res.status(201).json(created);
         else res.status(409).json({ error: 'Module already exists' });
     } catch (e) {
@@ -38,7 +38,7 @@ curriculumRouter.post('/', async (req, res) => {
 
 curriculumRouter.put('/:moduleId', async (req, res) => {
     try {
-        const updated = await db.updateModule(req.params.moduleId, req.body);
+        const updated = await db.curriculum.updateModule(req.params.moduleId, req.body);
         if (updated) res.json(updated);
         else res.status(404).json({ error: 'Module not found' });
     } catch (e) {
@@ -51,7 +51,7 @@ curriculumRouter.post('/import', upload.single('curriculumFile'), async (req, re
         res.status(400).json({ error: 'No file uploaded' });
         return;
     }
-    
+
     if (!req.file.originalname.toLowerCase().endsWith('.xlsx')) {
         res.status(400).json({ error: 'Solo se permiten archivos .xlsx' });
         return;
@@ -65,7 +65,7 @@ curriculumRouter.post('/import', upload.single('curriculumFile'), async (req, re
             });
             return;
         }
-        const result = await db.importCurriculum(rows);
+        const result = await db.curriculum.importCurriculum(rows);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Error al importar el plan de estudios' });
@@ -75,7 +75,7 @@ curriculumRouter.post('/import', upload.single('curriculumFile'), async (req, re
 curriculumRouter.put('/:moduleId/units/:unitId', async (req, res) => {
     try {
         const { completedSessions } = req.body;
-        const updated = await db.updateModulePlanningUnit(
+        const updated = await db.curriculum.updateModulePlanningUnit(
             req.params.moduleId,
             req.params.unitId,
             completedSessions
@@ -114,7 +114,7 @@ curriculumRouter.post('/:moduleId/files/:type', upload.single('document'), async
         await fs.promises.writeFile(savedFilePath, req.file.buffer);
 
         const publicUrl = `/uploads/curriculum/${encodeURIComponent(moduleId)}/${encodeURIComponent(savedFileName)}`;
-        const updatedModule = await db.updateModuleDocument(
+        const updatedModule = await db.curriculum.updateModuleDocument(
             moduleId, type, publicUrl, req.file.originalname
         );
         if (!updatedModule) {

@@ -6,7 +6,7 @@ export const minutesRouter = Router();
 
 minutesRouter.get('/', (_req, res) => {
   try {
-    res.json(db.getMinutes());
+    res.json(db.minutes.getMinutes());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
@@ -23,7 +23,7 @@ minutesRouter.patch('/:minuteId/tasks/:taskId', async (req, res) => {
   }
 
   try {
-    const updatedTask = await db.updateMinuteTask(minuteId, taskId, status);
+    const updatedTask = await db.minutes.updateMinuteTask(minuteId, taskId, status);
     if (updatedTask) {
       res.json({ success: true, task: updatedTask });
       return;

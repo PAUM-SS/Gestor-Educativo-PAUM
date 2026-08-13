@@ -7,6 +7,11 @@ type StudentsImportResult = {
   students: Student[];
 };
 
+type KardexResult = {
+  action: 'created' | 'updated';
+  student: Student;
+};
+
 export const studentService = {
 
   getStudents: async (): Promise<Student[]> => {
@@ -62,4 +67,16 @@ export const studentService = {
     if (!response.ok) throw new Error('Error al exportar estudiantes');
     return await response.blob();
   },
+
+  parseKardex: async (file: File): Promise<KardexResult> => {
+    const formData = new FormData();
+    formData.append('kardex', file);
+    const response = await fetch('/api/students/upload-kardex', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('Error al importar kardex');
+    return await response.json();
+  }
 };

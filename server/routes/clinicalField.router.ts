@@ -12,7 +12,7 @@ export const clinicalFieldsRouter = Router();
 
 clinicalFieldsRouter.get('/', (_req, res) => {
   try {
-    res.json(db.getClinicalFields());
+    res.json(db.clinicalFields.getClinicalFields());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
@@ -25,7 +25,7 @@ clinicalFieldsRouter.post('/', async (req, res) => {
       res.status(400).json({ error: 'Clinical field id and name are required' });
       return;
     }
-    const created = await db.addClinicalField(newField);
+    const created = await db.clinicalFields.addClinicalField(newField);
     if (created) {
       res.status(201).json(created);
       return;
@@ -38,7 +38,7 @@ clinicalFieldsRouter.post('/', async (req, res) => {
 
 clinicalFieldsRouter.put('/:id', async (req, res) => {
   try {
-    const updated = await db.updateClinicalField(req.params.id, req.body);
+    const updated = await db.clinicalFields.updateClinicalField(req.params.id, req.body);
     if (updated) res.json(updated);
     else res.status(404).json({ error: 'Clinical field not found' });
   } catch (e) {
@@ -48,7 +48,7 @@ clinicalFieldsRouter.put('/:id', async (req, res) => {
 
 clinicalFieldsRouter.delete('/:id', async (req, res) => {
   try {
-    const success = await db.deleteClinicalField(req.params.id);
+    const success = await db.clinicalFields.deleteClinicalField(req.params.id);
     if (success) res.json({ success: true });
     else res.status(404).json({ error: 'Clinical field not found' });
   } catch (error) {

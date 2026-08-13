@@ -10,7 +10,7 @@ export const calendarRouter = Router();
 calendarRouter.get('/events', (req, res) => {
     try {
         const { from, to } = req.query as { from?: string; to?: string };
-        res.json(db.getCalendarEvents(from, to));
+        res.json(db.calendar.getCalendarEvents(from, to));
     } catch (e) {
         res.status(500).json({ error: 'No se pudieron obtener los eventos del calendario.' });
     }
@@ -55,7 +55,7 @@ calendarRouter.post('/upload', upload.single('calendar'), async (req, res) => {
             rawEvents = result.events;
         }
 
-        const saved = db.upsertBuapEvents(rawEvents);
+        const saved = db.calendar.upsertBuapEvents(rawEvents);
         res.json({ created: saved.length, events: saved });
     } catch (error) {
         res.status(500).json({ error: 'Error interno al procesar el archivo del calendario.' });
@@ -74,7 +74,7 @@ calendarRouter.post('/minuta-event', (req, res) => {
     }
 
     try {
-        const event = db.addMinutaEvent(task, minuteId);
+        const event = db.calendar.addMinutaEvent(task, minuteId);
         res.json({ success: true, event });
     } catch (e) {
         res.status(500).json({ error: 'No se pudo registrar el evento de minuta.' });
@@ -83,7 +83,7 @@ calendarRouter.post('/minuta-event', (req, res) => {
 
 calendarRouter.delete('/minuta-event/:taskId', (req, res) => {
     try {
-        const removed = db.removeMinutaEvent(req.params.taskId);
+        const removed = db.calendar.removeMinutaEvent(req.params.taskId);
         res.json({ success: removed });
     } catch (e) {
         res.status(500).json({ error: 'No se pudo eliminar el evento de minuta.' });

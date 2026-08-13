@@ -5,7 +5,7 @@ export const miscRouter = Router();
 
 miscRouter.get('/rotations', (_req, res) => {
   try {
-    res.json(db.getRotations());
+    res.json(db.rotations.getRotations());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
@@ -13,7 +13,7 @@ miscRouter.get('/rotations', (_req, res) => {
 
 miscRouter.get('/activities', (_req, res) => {
   try {
-    res.json(db.getActivities());
+    res.json(db.activities.getActivities());
   } catch (e) {
     res.status(500).json({ error: 'DB not ready' });
   }
